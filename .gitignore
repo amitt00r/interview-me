@@ -1,0 +1,19 @@
+# Backend
+backend/target/
+backend/data/
+
+# Frontend
+# Company logos belong to local data (real companies' trademarks); not published
+frontend/public/companies/
+# Official AWS/Azure icons: licensed for diagrams, not redistribution; import your own copy (see its README)
+frontend/public/whiteboard-icons/*
+!frontend/public/whiteboard-icons/README.md
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+.idea/
+.vscode/
+*.iml
+.DS_Store
+logs/

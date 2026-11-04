@@ -1,0 +1,19 @@
+# Local development profile. Activate with:
+#   mvn spring-boot:run -Dspring-boot.run.profiles=local      (or SPRING_PROFILES_ACTIVE=local)
+#
+# Switches this machine to OpenAI. Keys come from the environment, so keep secrets out of this file.
+
+app:
+  ai:
+    provider: openai
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:}
+      organization: ${OPENAI_ORG_ID:}
+      model: ${OPENAI_MODEL:gpt-5.1}
+      turn-effort: ${OPENAI_TURN_EFFORT:low}
+      final-effort: ${OPENAI_FINAL_EFFORT:medium}
+
+logging:
+  level:
+    com.mockinterviewer: DEBUG

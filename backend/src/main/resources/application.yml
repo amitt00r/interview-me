@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: mock-interviewer
+  datasource:
+    url: jdbc:h2:file:./data/mockinterviewer;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+server:
+  port: 8080
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+  ai:
+    max-questions: 5
+    max-follow-ups: 2
+    panel-size: 3
+    provider: anthropic  # anthropic | openai; only that provider's block below is used
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      base-url: ${ANTHROPIC_BASE_URL:}             # blank = https://api.anthropic.com
+      model: ${ANTHROPIC_MODEL:claude-opus-5-5}
+      turn-effort: ${ANTHROPIC_TURN_EFFORT:low}      # low | medium | high | max; blank sends none
+      final-effort: ${ANTHROPIC_FINAL_EFFORT:medium}
+#    openai:
+#      api-key: ${OPENAI_API_KEY:}
+#      base-url: ${OPENAI_BASE_URL:}                # blank = https://api.openai.com/v1; any OpenAI-compatible server works
+#      organization: ${OPENAI_ORG_ID:}
+#      model: ${OPENAI_MODEL:gpt-5.1}
+#      turn-effort: ${OPENAI_TURN_EFFORT:low}         # sent as reasoning_effort; blank for non-reasoning models
+#      final-effort: ${OPENAI_FINAL_EFFORT:medium}
+  uploads:
+    dir: ./data/uploads
+  speech:
+    key: ${AZURE_SPEECH_KEY:}
+    region: ${AZURE_SPEECH_REGION:}

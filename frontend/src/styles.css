@@ -1,0 +1,263 @@
+/*
+ * Mantine provides the look (see theme.ts). This file only holds what Mantine has no component for: the
+ * video-call room (stage, tiles, chat bubbles) and a few small helpers. Colours come from Mantine's CSS variables,
+ * so light and dark mode follow the colour-scheme toggle.
+ */
+:root {
+  /* Light mode: a blue-grey page so white cards stand out, and shaded areas dark enough to read as panels. */
+  --app-bg: #e9edf3;
+  --app-surface: var(--mantine-color-white);
+  --app-subtle: #f1f4f8;
+  --app-border: #d5dbe4;
+  --app-accent: var(--mantine-primary-color-filled);
+  --app-accent-soft: var(--mantine-primary-color-light);
+  --app-good: var(--mantine-color-teal-6);
+  --stage: #1f2430;
+  --tile: #2b3140;
+}
+[data-mantine-color-scheme='dark'] {
+  --app-bg: var(--mantine-color-dark-8);
+  --app-surface: var(--mantine-color-dark-7);
+  --app-subtle: var(--mantine-color-dark-6);
+  --stage: #0b0d12;
+  --tile: #232837;
+}
+
+/* App shell */
+.app-main { background: var(--app-bg); min-height: 100vh; overflow-x: clip; }
+
+/* Light mode: firmer borders and a soft shadow on cards and panels, so they lift off the page. */
+[data-mantine-color-scheme='light'] {
+  --mantine-color-default-border: var(--app-border);
+}
+[data-mantine-color-scheme='light'] .mantine-Card-root,
+[data-mantine-color-scheme='light'] .mantine-AppShell-main .mantine-Paper-root[data-with-border],
+[data-mantine-color-scheme='light'] .mantine-Accordion-item {
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+}
+[data-mantine-color-scheme='light'] .mantine-AppShell-header { box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06); }
+.brand { color: inherit; text-decoration: none; }
+
+/* Helpers */
+.pre-wrap { white-space: pre-wrap; }
+.tabular { font-variant-numeric: tabular-nums; }
+.soft-panel { background: var(--app-subtle); border-radius: var(--mantine-radius-md); }
+.company-logo img { object-fit: contain; background: #fff; }
+.hover-card { color: inherit; text-decoration: none; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.hover-card:hover { border-color: var(--app-accent); transform: translateY(-2px); box-shadow: var(--mantine-shadow-sm); }
+.clickable { cursor: pointer; }
+.clickable:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.inline-icon { vertical-align: middle; }
+
+/* Report */
+.answer-box { background: var(--app-subtle); }
+.follow-up { margin-left: var(--mantine-spacing-lg); padding-left: var(--mantine-spacing-md); border-left: 3px solid var(--app-accent); }
+.not-attempted { opacity: 0.7; }
+.attempt-chip { color: inherit; text-decoration: none; text-align: center; }
+.attempt-chip:hover { border-color: var(--app-accent); }
+.attempt-chip.current { border-color: var(--app-accent); background: var(--app-accent-soft); }
+
+/* Ask AI modal: question card, then fixed-height panes that scroll their own text */
+.ask-ai-question { border-left: 4px solid var(--app-accent); background: var(--app-subtle); }
+.ask-ai-pane { display: flex; flex-direction: column; height: clamp(300px, 52vh, 860px); background: var(--app-subtle); }
+/* The better answer stands out by its accent edge and heading, with only a faint tint over the neutral pane. */
+.ask-ai-pane.better {
+  background: color-mix(in srgb, var(--app-accent) 4%, var(--app-subtle));
+  border: 1px solid var(--app-border); border-left: 3px solid var(--app-accent);
+}
+.ask-ai-scroll { flex: 1; min-height: 0; }
+@media (max-width: 48em) { .ask-ai-pane { height: 45vh; } }
+
+/* Interview room */
+/*
+ * The app header is hidden in the room (chrome.ts), and the room also takes the page container's top and bottom
+ * padding, so its header sits at the same place, at the same size, with the whiteboard open or not.
+ */
+.room { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 4 * var(--mantine-spacing-md)); min-height: 560px; }
+.room-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; }
+/* The room's header uses the body's columns: title and Skip over the people, timers over the chat. */
+.room-header { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: center; }
+@media (min-width: 62em) {
+  .room { margin-block: calc(-1 * var(--mantine-spacing-md)); height: calc(100vh - 2 * var(--mantine-spacing-md)); }
+  /*
+   * Whiteboard open: the room breaks out of the page's centred container to the full window width (keeping a
+   * small gutter) and the chat narrows, so the board gets as much width as possible.
+   */
+  .room.board-mode { margin-inline: calc(50% - 50vw + var(--mantine-spacing-md)); }
+  .room.board-mode .room-body, .room.board-mode .room-header { grid-template-columns: minmax(0, 1fr) 340px; }
+}
+@media (max-width: 62em) {
+  .room { height: auto; }
+  .room-body, .room-header { grid-template-columns: 1fr; }
+  .chat { height: 70vh; }
+}
+.stage-col { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.stage { flex: 1; min-height: 320px; border-radius: var(--mantine-radius-md); background: var(--stage); padding: 12px; }
+.solo-stage { position: relative; display: flex; }
+.solo-stage .interviewer-tile { flex: 1; }
+.panel-stage { display: grid; gap: 12px; grid-auto-rows: 1fr; }
+.panel-stage.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.panel-stage.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 40em) { .panel-stage.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.tile {
+  position: relative; border-radius: var(--mantine-radius-md); overflow: hidden; background: var(--tile);
+  display: flex; flex-direction: column; min-height: 160px; box-shadow: 0 0 0 2px transparent; transition: box-shadow 0.2s;
+}
+.tile-media { flex: 1; display: grid; place-items: center; position: relative; min-height: 0; }
+.tile-photo { width: 42%; max-width: 180px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: #fff2; }
+.interviewer-tile.hero .tile-photo { width: 34%; max-width: 260px; }
+.tile-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.tile-initials {
+  display: grid; place-items: center; gap: 6px; text-align: center; font-size: 2rem; font-weight: 700;
+  color: #fff; width: 100%; height: 100%; background: linear-gradient(135deg, var(--mantine-color-indigo-6), var(--mantine-color-violet-6));
+}
+.tile-initials small { font-size: 0.75rem; font-weight: 400; opacity: 0.85; padding: 0 8px; }
+.nameplate {
+  position: absolute; left: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; border-radius: var(--mantine-radius-md); background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 0.85rem;
+  max-width: calc(100% - 20px);
+}
+.nameplate span { opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-badge {
+  position: absolute; top: 10px; right: 10px; font-size: 0.72rem; font-weight: 600; padding: 3px 8px;
+  border-radius: var(--mantine-radius-md); background: var(--app-accent); color: #fff;
+}
+.tile.speaking { box-shadow: 0 0 0 3px var(--app-good); }
+.tile.speaking .tile-photo { animation: pulse 1.4s ease-in-out infinite; }
+.tile.asking { box-shadow: 0 0 0 2px var(--app-accent); }
+.tile.thinking .dots { position: absolute; bottom: 18%; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(18, 184, 134, 0.5); } 50% { box-shadow: 0 0 0 14px rgba(18, 184, 134, 0); } }
+.eq { position: absolute; top: 12px; right: 12px; display: flex; gap: 3px; align-items: flex-end; height: 18px; }
+.eq i { width: 4px; background: var(--app-good); border-radius: 2px; animation: eq 0.9s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: 0.15s; }
+.eq i:nth-child(3) { animation-delay: 0.3s; }
+.eq i:nth-child(4) { animation-delay: 0.45s; }
+@keyframes eq { 0%, 100% { height: 4px; } 50% { height: 18px; } }
+.candidate-tile.listening { box-shadow: 0 0 0 3px var(--app-good); }
+.candidate-tile.pip {
+  position: absolute; right: 24px; bottom: 24px; width: 26%; min-width: 160px; max-width: 280px;
+  aspect-ratio: 4 / 3; min-height: 0; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); z-index: 1;
+}
+.candidate-tile.pip.listening { box-shadow: 0 0 0 3px var(--app-good), 0 6px 20px rgba(0, 0, 0, 0.4); }
+.candidate-tile.pip .tile-initials { font-size: 1.4rem; }
+.mic-state { display: inline-flex; opacity: 0.8; }
+.mic-state.on { color: var(--app-good); opacity: 1; }
+
+.chat { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.chat-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.msg { display: flex; gap: 8px; align-items: flex-start; }
+.bubble { max-width: 88%; padding: 10px 14px; border-radius: var(--mantine-radius-md); white-space: pre-wrap; font-size: 0.93rem; }
+.bubble p { margin: 0; }
+.bubble.interviewer { background: var(--app-subtle); border: 1px solid var(--app-border); border-top-left-radius: 4px; }
+.bubble.candidate { margin: 10px 0 0 auto; background: var(--app-accent); color: #fff; border-top-right-radius: 4px; }
+.bubble.candidate.skipped { opacity: 0.6; font-style: italic; }
+.typing { display: flex; align-items: center; gap: 8px; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--mantine-color-dimmed); animation: blink 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+.composer { border-top: 1px solid var(--app-border); }
+.chat-header { border-bottom: 1px solid var(--app-border); background: var(--app-subtle); }
+
+.lobby-preview { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+.lobby-preview .candidate-tile { aspect-ratio: 4 / 3; }
+@media (max-width: 36em) { .lobby-preview { grid-template-columns: 1fr; } }
+
+/* Start-interview modal: the settings column sits on a shaded panel */
+.settings-panel { background: var(--app-subtle); }
+/*
+ * Light mode: the settings panel a shade lighter, and its segmented controls (Format, pause) on a darker track
+ * with a border, so they don't blend into the panel (Mantine's default track is about the panel's colour).
+ */
+[data-mantine-color-scheme='light'] .settings-panel { background: #f8fafc; }
+[data-mantine-color-scheme='light'] .settings-panel .mantine-SegmentedControl-root {
+  background: var(--app-bg); border: 1px solid var(--app-border);
+}
+
+/* Nikolai: floating button (bottom right) and chat panel */
+.nikolai-fab {
+  /* Just his face in a gradient ring: a round button (a true circle, so not the app's corner radius). */
+  display: flex; padding: 4px; border: none; border-radius: 50%;
+  cursor: pointer; font: inherit; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, var(--mantine-color-indigo-6), var(--mantine-color-violet-6));
+  box-shadow: 0 8px 24px rgba(59, 91, 219, 0.35); transition: transform 0.15s, box-shadow 0.15s;
+}
+.nikolai-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(59, 91, 219, 0.45); }
+.nikolai-fab:focus-visible { outline: 3px solid var(--mantine-color-indigo-3); outline-offset: 2px; }
+.nikolai-fab img { width: 52px; height: 52px; border-radius: 50%; background: #fff; }
+.nikolai-panel {
+  position: fixed; right: 24px; bottom: 96px; z-index: 199; width: min(420px, calc(100vw - 32px));
+  height: min(620px, calc(100vh - 140px)); display: flex; flex-direction: column; overflow: hidden;
+  transform-origin: bottom right;
+}
+.nikolai-head { border-bottom: 1px solid var(--app-border); }
+.nikolai-log { flex: 1; min-height: 0; background: var(--app-subtle); }
+.nikolai-composer { border-top: 1px solid var(--app-border); }
+.nikolai-msg { display: flex; flex-direction: column; align-items: flex-start; }
+.nikolai-msg.you { align-items: flex-end; }
+.nikolai-bubble { max-width: 85%; padding: 8px 12px; border-radius: var(--mantine-radius-md); }
+.nikolai-bubble.nikolai {
+  background: var(--app-surface); border: 1px solid var(--app-border); border-top-left-radius: 4px;
+}
+.nikolai-bubble.you { background: var(--app-accent); color: #fff; border-top-right-radius: 4px; }
+.nikolai-bubble.error { border-color: var(--mantine-color-red-6); color: var(--mantine-color-red-7); }
+
+/* Hands-free dictation: countdown before an answer is sent after silence */
+.silence-countdown { border-color: var(--app-accent); background: var(--app-accent-soft); }
+
+/* Whiteboard: interviewers shrink to a filmstrip and the board takes the stage */
+.stage.filmstrip { flex: 0 0 132px; min-height: 0; display: flex; gap: 10px; padding: 8px; }
+.stage.filmstrip { justify-content: center; }
+.stage.filmstrip .tile { flex: 0 1 220px; min-height: 0; }
+/* Photos centred in the space above the nameplate, at a fixed size (a percentage height doesn't resolve here). */
+.stage.filmstrip .tile-media { padding-bottom: 26px; }
+.stage.filmstrip .tile-photo { width: 64px; height: 64px; max-width: none; }
+.stage.filmstrip .nameplate { left: 6px; bottom: 6px; padding: 2px 6px; font-size: 0.75rem; }
+.whiteboard { position: relative; flex: 1; min-height: 420px; overflow: hidden; }
+.whiteboard-canvas { position: absolute; inset: 0; }
+.board-thumb { max-width: 220px; background: #fff; cursor: zoom-in; }
+.report-board { max-width: min(100%, 560px); max-height: 360px; object-fit: contain; background: #fff; border: 1px solid var(--app-border); cursor: zoom-in; }
+
+/* Standalone whiteboard page: the board fills the window (no app header) */
+.whiteboard-page { position: fixed; inset: 0; }
+
+/*
+ * Whiteboard (room and /whiteboard page): the Library sidebar docks on the left and the shape settings panel sits
+ * on the right, the other way round from Excalidraw's default. Doubled class to beat Excalidraw's own CSS, which
+ * loads after this file. When the sidebar is docked Excalidraw narrows the UI layer; anchoring it right leaves
+ * the space on the left.
+ */
+.excalidraw.excalidraw .sidebar {
+  left: 0;
+  right: auto;
+  border-left: 0;
+  border-right: 1px solid var(--sidebar-border-color);
+}
+.excalidraw.excalidraw .layer-ui__wrapper { right: 0; }
+.excalidraw.excalidraw .App-menu__left { right: 0; }
+
+/* Whiteboard component panel (ComponentPanel), in our own Excalidraw sidebar */
+/* Excalidraw's own Library button (top right) is hidden: our palette's button sits top left. */
+.whiteboard-host { position: relative; height: 100%; }
+.excalidraw.excalidraw .default-sidebar-trigger { display: none; }
+/* Excalidraw's menu is hidden too: the palette button takes its place. Clear sits in the footer after Undo/Redo. */
+.excalidraw.excalidraw .main-menu-trigger { display: none; }
+.palette-trigger { position: absolute; z-index: 4; top: 16px; left: 16px; height: 36px; }
+.board-clear { height: var(--lg-button-size, 2.25rem); margin-left: 8px; }
+.whiteboard-close { box-shadow: var(--mantine-shadow-xs); }
+.component-panel { flex: 1; min-height: 0; }
+.component-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 calc(var(--mantine-spacing-xs) * -1); padding: 0 var(--mantine-spacing-xs); }
+.component-tile { padding: 6px 2px; border-radius: var(--mantine-radius-md); cursor: grab; }
+.component-tile:hover { background: var(--mantine-color-default-hover); }
+.component-thumb { height: 44px; width: 100%; display: flex; justify-content: center; }
+/* Core previews are drawn dark-on-transparent; flip them the way Excalidraw's dark theme flips the board. */
+[data-mantine-color-scheme='dark'] .component-thumb.core { filter: invert(93%) hue-rotate(180deg); }
+
+/* The room header's controls (Skip question, the timer panel) share one height. */
+.room-control { height: 48px; box-shadow: var(--mantine-shadow-xs); }
+.clocks.room-control { display: flex; align-items: center; background: var(--app-subtle); }
+.clocks.room-control > .mantine-Group-root { flex: 1; }
+/* Room timers (components/Clock): a divider between the clocks in the panel */
+.clocks > .mantine-Group-root > * + * { padding-left: var(--mantine-spacing-md); border-left: 1px solid var(--app-border); }
