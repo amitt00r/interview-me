@@ -139,6 +139,8 @@ For coding questions (implement a function, write a SQL query, fix a snippet) th
 code, and the code editor opens automatically in the language asked for. You can also press **Code** at any time. Like
 the whiteboard, it takes the stage and the interviewers shrink to a strip at the top.
 
+![Code editor](screenshots/code-editor.jpg)
+
 - The question appears at the top of the editor as a comment, so you can read it while you code; a follow-up that
   asks for code is added above it the same way. These comments don't count as changes until you edit.
 - Pick **Java**, **Python** or **SQL** in the editor's toolbar (comments switch to the new language's syntax); for SQL you can also pick a dialect (Standard,

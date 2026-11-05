@@ -70,7 +70,8 @@ hiring-committee style report and a personal study guide.
 |---|---|
 | ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard:** past interviews, scores and time spent | ![Start an interview](docs/screenshots/start-interview.jpg) **Start an interview:** resume, company, format, round and focus topics |
 | ![Whiteboard](docs/screenshots/whiteboard.jpg) **Whiteboard:** sketch your design while you answer | ![Report](docs/screenshots/report-summary.jpg) **Report:** score, summary, strengths and improvements |
-| ![Ask AI](docs/screenshots/ask-ai.jpg) **Ask AI:** your answer next to a model answer, plus what to read | ![Company](docs/screenshots/company.jpg) **Company page:** the interviewer panel and their personas |
+| ![Code editor](docs/screenshots/code-editor.jpg) **Code editor:** write Java, Python or SQL with the question on top | ![Ask AI](docs/screenshots/ask-ai.jpg) **Ask AI:** your answer next to a model answer, plus what to read |
+| ![Company](docs/screenshots/company.jpg) **Company page:** the interviewer panel and their personas | ![Preferences](docs/screenshots/preferences.jpg) **Preferences:** theme, Nikolai's voice, pauses and code suggestions |
 
 All screenshots use fictional demo companies, interviewers and a fictional candidate.
 
