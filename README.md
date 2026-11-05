@@ -2,8 +2,8 @@
 
 **AI mock interviews that feel like the real thing.** Set up the companies you're targeting and their interviewer
 panels, upload your resume, and step into a video-call style room where AI interviewers ask you questions out loud,
-dig into your answers with follow-ups, ask you to sketch designs on a shared whiteboard or write code in a shared editor, and finish with a scored,
-hiring-committee style report and a personal study guide.
+dig into your answers with follow-ups, ask you to sketch designs on a shared whiteboard or write code in a shared
+editor, and finish with a scored, hiring-committee style report and a personal study guide.
 
 > [!WARNING]
 > **Vibe-coded: use with care.** This project was built largely by prompting an AI coding assistant, not through a
@@ -23,57 +23,95 @@ hiring-committee style report and a personal study guide.
 >
 > Provided as is, without warranty (see [LICENSE](LICENSE)). Review the code before relying on it.
 
-![Interview room](docs/screenshots/interview-room.jpg)
-
 ## Features
 
-- **Companies and interviewer personas.** Add the companies you're preparing for, each with what its interviews focus
-  on, and a panel of interviewers with their own title, seniority, expertise, interviewing style, voice and photo.
-- **AI-chosen panels.** For each interview the AI reads your resume, the role, the job description and the round, picks
-  the best-fitting interviewers from the company and decides who asks what. The lead asks your introduction, and each
-  topic goes to whoever knows it best.
-- **Questions planned up front, follow-ups live.** Every main question is written before you start (so a reattempt
-  can ask exactly the same ones). After each answer the interviewer scores it and either probes deeper with a follow-up
-  or moves on.
-- **Rounds and focus topics.** Name the round you're practising (say "Onsite: system design"), describe how it runs,
-  and optionally restrict it to focus topics (one per main question at most, up to 8) from a built-in catalog or your own. You get a per-topic breakdown
-  at the end.
-- **Video-call interview room.** One-on-one or panel layouts, a live transcript, per-question and total timers, skip,
-  and end at any time.
-- **Voice, hands-free.** Interviewers speak their questions (Azure AI Speech, a distinct voice each). Answer by voice
-  and your answer is sent after a pause you choose (3 to 60 s), so you practise talking without long silences. Typing
-  always works too.
-- **Shared whiteboard.** An Excalidraw board with a palette of system-design components, plus the official AWS and
-  Azure architecture icons once you import them (see [Third-party assets](#third-party-assets)). Your drawing goes to the interviewers with your answer, and they read it together with
-  what you said.
-- **Code editor.** Write Java, Python or SQL (CodeMirror, with highlighting and optional autocomplete) when a question
-  calls for code. The question sits at the top of the editor as a comment, your code goes to the interviewers with
-  your answer, and follow-ups can ask you to change it.
-- **Detailed report.** An overall score out of 100, a summary, strengths, things to improve, per-topic min/max/last scores,
-  and every question with your answer, its score and feedback.
-- **Ask AI study guides.** On any question, see your answer next to a first-person model answer built from your resume,
-  plus a prioritised reading list tied to the gaps in your answer.
-- **Reattempts.** Retake any interview with the same questions and compare scores with your previous attempt, question by
-  question.
-- **Nikolai, your coach.** A friendly in-app assistant (a Russian career coach persona, voiced) who can list and add
-  companies and interviewers, look up past interviews and resumes, and start an interview for you, by chat or voice.
-- **MCP server.** The same actions are exposed over the Model Context Protocol, so Claude Code or any MCP client can drive
-  the app.
+All screenshots use fictional demo companies, interviewers and a fictional candidate.
+
+### Companies and interviewer personas
+
+Add the companies you're preparing for, each with what its interviews focus on, and a panel of interviewers with their
+own title, seniority, expertise, interviewing style, voice and photo. For each interview the AI reads your resume, the
+role, the job description and the round, picks the best-fitting interviewers from the company and decides who asks
+what. The lead asks your introduction, and each topic goes to whoever knows it best.
+
+![Company page](docs/screenshots/company.jpg)
+
+### Rounds and focus topics
+
+Upload your resume, pick the company and format, name the round you're practising (say "Onsite: system design"),
+describe how it runs, and optionally restrict it to focus topics (one per main question at most, up to 8) from a
+built-in catalog or your own. You get a per-topic breakdown at the end. Every main question is written before you
+start, so a reattempt can ask exactly the same ones; after each answer the interviewer scores it and either probes
+deeper with a follow-up or moves on.
+
+![Start an interview](docs/screenshots/start-interview.jpg)
+
+### Video-call interview room, hands-free
+
+One-on-one or panel layouts, a live transcript, per-question and total timers, skip, and end at any time.
+Interviewers speak their questions (Azure AI Speech, a distinct voice each). Answer by voice and your answer is sent
+after a pause you choose (3 to 60 s), so you practise talking without long silences. Typing always works too.
+
+![Interview room](docs/screenshots/interview-room.jpg)
+
+### Shared whiteboard
+
+An Excalidraw board with a palette of system-design components, plus the official AWS and Azure architecture icons
+once you import them (see [Third-party assets](#third-party-assets)). Your drawing goes to the interviewers with your
+answer, and they read it together with what you said.
+
+![Whiteboard](docs/screenshots/whiteboard.jpg)
+
+### Code editor
+
+Write Java, Python or SQL (CodeMirror, with highlighting and optional autocomplete) when a question calls for code.
+The question sits at the top of the editor as a comment, your code goes to the interviewers with your answer, and
+follow-ups can ask you to change it.
+
+![Code editor](docs/screenshots/code-editor.jpg)
+
+### Detailed report
+
+An overall score out of 100, a summary, strengths, things to improve, per-topic min/max/last scores, and every
+question with your answer (and drawing or code), its score and feedback.
+
+![Report](docs/screenshots/report-summary.jpg)
+
+### Ask AI study guides
+
+On any question, see your answer next to a first-person model answer built from your resume, plus a prioritised
+reading list tied to the gaps in your answer.
+
+![Ask AI](docs/screenshots/ask-ai.jpg)
+
+### Dashboard and reattempts
+
+Every past interview with its score, questions attempted and time spent. Retake any interview with the same questions
+and compare scores with your previous attempt, question by question.
+
+![Dashboard](docs/screenshots/dashboard.jpg)
+
+### Nikolai, your coach
+
+A friendly in-app assistant (a Russian career coach persona, voiced) who can list and add companies and interviewers,
+look up past interviews and resumes, and start an interview for you, by chat or voice.
+
+![Nikolai](docs/screenshots/nikolai.jpg)
+
+### Preferences
+
+Light or dark theme, Nikolai's voice, the hands-free pauses and code suggestions, saved in your browser.
+
+![Preferences](docs/screenshots/preferences.jpg)
+
+### And also
+
+- **MCP server.** The same actions Nikolai uses are exposed over the Model Context Protocol, so Claude Code or any MCP
+  client can drive the app.
 - **Choice of AI provider.** Anthropic Claude (default) or OpenAI, including OpenAI-compatible servers such as a local
   Ollama or vLLM.
 - **Private by design.** Everything (companies, interviews, resumes) stays in a local database on your machine. The
   camera preview never leaves the browser, and API keys stay on the backend.
-
-## Screenshots
-
-| | |
-|---|---|
-| ![Dashboard](docs/screenshots/dashboard.jpg) **Dashboard:** past interviews, scores and time spent | ![Start an interview](docs/screenshots/start-interview.jpg) **Start an interview:** resume, company, format, round and focus topics |
-| ![Whiteboard](docs/screenshots/whiteboard.jpg) **Whiteboard:** sketch your design while you answer | ![Report](docs/screenshots/report-summary.jpg) **Report:** score, summary, strengths and improvements |
-| ![Code editor](docs/screenshots/code-editor.jpg) **Code editor:** write Java, Python or SQL with the question on top | ![Ask AI](docs/screenshots/ask-ai.jpg) **Ask AI:** your answer next to a model answer, plus what to read |
-| ![Company](docs/screenshots/company.jpg) **Company page:** the interviewer panel and their personas | ![Preferences](docs/screenshots/preferences.jpg) **Preferences:** theme, Nikolai's voice, pauses and code suggestions |
-
-All screenshots use fictional demo companies, interviewers and a fictional candidate.
 
 **New here? Read the [User guide](docs/USER_GUIDE.md)** for a step-by-step walkthrough.
 
