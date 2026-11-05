@@ -2,7 +2,8 @@ import { ActionIcon, Alert, Anchor, Badge, Button, Group, Loader, Modal, Paper, 
 import { IconSearch, IconSparkles } from '@tabler/icons-react';
 import { useState } from 'react';
 import { scoreColor } from '../api';
-import type { StudyGuide } from '../types';
+import type { CodeSubmission, StudyGuide } from '../types';
+import { CodeBlock, splitFences } from './CodeBlock';
 
 const googleSearchUrl = (topic: string) => `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
 
@@ -11,12 +12,14 @@ const googleSearchUrl = (topic: string) => `https://www.google.com/search?q=${en
  * answer (left) with a better answer (right), plus what to read up on. Claude writes the better answer on the first
  * open (it takes a few seconds), then it is stored and shows instantly.
  */
-export default function AskAi({ label, question, answer, score, initial, load }: {
+export default function AskAi({ label, question, answer, code = null, score, initial, load }: {
   /** Which question this is, e.g. "Q2" or "Q2 · Follow-up 1". */
   label: string;
   question: string;
   /** The candidate's answer, or what happened instead ("You skipped this question."). */
   answer: { text: string; given: boolean };
+  /** Code the candidate submitted with the answer, if any. */
+  code?: CodeSubmission | null;
   score: number | null;
   initial: StudyGuide | null;
   load: () => Promise<StudyGuide>;
@@ -78,6 +81,7 @@ export default function AskAi({ label, question, answer, score, initial, load }:
               </Group>
               <ScrollArea className="ask-ai-scroll" offsetScrollbars>
                 <Text className="pre-wrap" lh={1.6} c={answer.given ? undefined : 'dimmed'}>{answer.text}</Text>
+                {code && <CodeBlock code={code} mt="sm" />}
               </ScrollArea>
             </Paper>
             <Paper p="md" className="ask-ai-pane better">
@@ -96,7 +100,7 @@ export default function AskAi({ label, question, answer, score, initial, load }:
                     {error} <Anchor component="button" onClick={fetchGuide}>Try again</Anchor>
                   </Alert>
                 )}
-                {guide && <Text className="pre-wrap" lh={1.6}>{guide.modelAnswer}</Text>}
+                {guide && <ModelAnswer text={guide.modelAnswer} />}
               </ScrollArea>
             </Paper>
           </SimpleGrid>
@@ -127,5 +131,16 @@ export default function AskAi({ label, question, answer, score, initial, load }:
         </Stack>
       </Modal>
     </>
+  );
+}
+
+/** The better answer: prose, with any fenced code blocks highlighted. */
+function ModelAnswer({ text }: { text: string }) {
+  return (
+    <Stack gap="sm">
+      {splitFences(text).map((part, i) => part.code
+        ? <CodeBlock key={i} code={part.text} language={part.language} />
+        : part.text.trim() && <Text key={i} className="pre-wrap" lh={1.6}>{part.text.trim()}</Text>)}
+    </Stack>
   );
 }

@@ -2,7 +2,7 @@
 
 **AI mock interviews that feel like the real thing.** Set up the companies you're targeting and their interviewer
 panels, upload your resume, and step into a video-call style room where AI interviewers ask you questions out loud,
-dig into your answers with follow-ups, ask you to sketch designs on a shared whiteboard, and finish with a scored,
+dig into your answers with follow-ups, ask you to sketch designs on a shared whiteboard or write code in a shared editor, and finish with a scored,
 hiring-committee style report and a personal study guide.
 
 > [!WARNING]
@@ -46,8 +46,11 @@ hiring-committee style report and a personal study guide.
 - **Shared whiteboard.** An Excalidraw board with a palette of system-design components, plus the official AWS and
   Azure architecture icons once you import them (see [Third-party assets](#third-party-assets)). Your drawing goes to the interviewers with your answer, and they read it together with
   what you said.
-- **Detailed report.** An overall score out of 100, a summary, strengths, things to improve, per-topic averages, and
-  every question with your answer, its score and feedback.
+- **Code editor.** Write Java, Python or SQL (CodeMirror, with highlighting and optional autocomplete) when a question
+  calls for code. The question sits at the top of the editor as a comment, your code goes to the interviewers with
+  your answer, and follow-ups can ask you to change it.
+- **Detailed report.** An overall score out of 100, a summary, strengths, things to improve, per-topic min/max/last scores,
+  and every question with your answer, its score and feedback.
 - **Ask AI study guides.** On any question, see your answer next to a first-person model answer built from your resume,
   plus a prioritised reading list tied to the gaps in your answer.
 - **Reattempts.** Retake any interview with the same questions and compare scores with your previous attempt, question by
@@ -202,10 +205,10 @@ To run a second frontend against another backend (for example a demo instance), 
 Project layout:
 
 - `backend/`: Java 21, Spring Boot 3.5, Spring Data JPA, H2, Anthropic and OpenAI Java SDKs, MCP Java SDK, PDFBox
-- `frontend/`: React 19, TypeScript, Vite, Mantine, Excalidraw, Azure Speech SDK
+- `frontend/`: React 19, TypeScript, Vite, Mantine, Excalidraw, CodeMirror, Azure Speech SDK
 
 [`CLAUDE.md`](CLAUDE.md) documents the architecture in depth: the interview state machine, how prompts are built,
-the whiteboard, and so on.
+the whiteboard, the code editor, and so on.
 
 ## Third-party assets
 

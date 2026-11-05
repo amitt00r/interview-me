@@ -1,5 +1,6 @@
 import type {
   Company,
+  CodeSubmission,
   CompanyInput,
   AttemptSummary,
   InterviewDetail,
@@ -110,9 +111,14 @@ export const api = {
       form.append('resume', input.resume);
       return request<InterviewDetail>('/interviews', { method: 'POST', body: form });
     },
-    /** `whiteboard` is the board at submit time, or null when it wasn't used (or hasn't changed since last sent). */
-    answer: (id: number, answer: string, responseSeconds: number | null, whiteboard: WhiteboardSnapshot | null = null) =>
-      request<InterviewDetail>(`/interviews/${id}/answers`, json('POST', { answer, responseSeconds, whiteboard })),
+    /**
+     * `whiteboard` is the board at submit time and `code` the code editor's contents, each null when not used (or
+     * unchanged since last sent).
+     */
+    answer: (id: number, answer: string, responseSeconds: number | null, whiteboard: WhiteboardSnapshot | null = null,
+      code: CodeSubmission | null = null) =>
+      request<InterviewDetail>(`/interviews/${id}/answers`,
+        json('POST', { answer, responseSeconds, whiteboard, code })),
     /** The Excalidraw scene submitted with a turn's answer, to reopen the board after a reload. */
     whiteboardScene: (id: number, turnId: number) =>
       fetch(`/api/interviews/${id}/turns/${turnId}/whiteboard/scene`).then((r) => (r.ok ? r.text() : null)),

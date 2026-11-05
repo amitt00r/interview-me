@@ -4,6 +4,7 @@ import com.mockinterviewer.interviewer.Interviewer;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -21,10 +22,25 @@ public final class InterviewDtos {
 
     /**
      * {@code responseSeconds} is the browser's measure of how long the candidate took; optional. {@code answer} may
-     * be empty when a {@code whiteboard} is sent.
+     * be empty when a {@code whiteboard} or {@code code} is sent.
      */
     public record AnswerRequest(@Size(max = 20000) String answer,
-            @Min(0) @Max(86_400) Integer responseSeconds, @Valid WhiteboardRequest whiteboard) {
+            @Min(0) @Max(86_400) Integer responseSeconds, @Valid WhiteboardRequest whiteboard,
+            @Valid CodeRequest code) {
+    }
+
+    /** The code editor's contents at submit time. */
+    public record CodeRequest(@NotNull CodeLanguage language,
+            @NotBlank @Size(max = TurnCode.MAX_SOURCE_CHARS) String source) {
+    }
+
+    /** Code submitted with an answer. */
+    public record CodeResponse(CodeLanguage language, String source) {
+
+        static CodeResponse from(InterviewTurn t) {
+            TurnCode code = t == null ? null : t.getCode();
+            return code == null ? null : new CodeResponse(code.getLanguage(), code.getSource());
+        }
     }
 
     /**
@@ -48,13 +64,13 @@ public final class InterviewDtos {
             Long id, int sequence, InterviewerRef askedBy, String question, boolean followUp, String answer,
             boolean skipped, Integer score, String feedback, Instant askedAt, Instant answeredAt,
             Integer responseSeconds, StudyGuideResponse studyGuide, boolean whiteboardRequested,
-            String whiteboardUrl) {
+            String whiteboardUrl, CodeLanguage codeRequested, CodeResponse code) {
 
         static TurnResponse from(InterviewTurn t) {
             return new TurnResponse(t.getId(), t.getSequence(), InterviewerRef.from(t.getAskedBy()), t.getQuestion(),
                     t.isFollowUp(), t.getAnswer(), t.isSkipped(), t.getScore(), t.getFeedback(), t.getAskedAt(),
                     t.getAnsweredAt(), t.getResponseSeconds(), StudyGuideResponse.from(t.getStudyGuide()),
-                    t.isWhiteboardRequested(), whiteboardUrlOf(t));
+                    t.isWhiteboardRequested(), whiteboardUrlOf(t), t.getCodeRequested(), CodeResponse.from(t));
         }
     }
 
@@ -83,7 +99,7 @@ public final class InterviewDtos {
     public record QuestionResult(
             Long id, int position, String topic, String question, InterviewerRef askedBy, QuestionStatus status,
             String answer, Integer score, String feedback, Integer responseSeconds, List<TurnResponse> followUps,
-            StudyGuideResponse studyGuide, String whiteboardUrl) {
+            StudyGuideResponse studyGuide, String whiteboardUrl, CodeLanguage codeLanguage, CodeResponse code) {
 
         static List<QuestionResult> from(Interview i) {
             return i.getPlan().stream().map(q -> {
@@ -99,7 +115,7 @@ public final class InterviewDtos {
                         main == null ? null : main.getAnswer(), main == null ? null : main.getScore(),
                         main == null || main.isSkipped() ? null : main.getFeedback(),
                         main == null ? null : main.getResponseSeconds(), followUps, StudyGuideResponse.from(q.getStudyGuide()),
-                        whiteboardUrlOf(main));
+                        whiteboardUrlOf(main), q.getCodeLanguage(), CodeResponse.from(main));
             }).toList();
         }
 
@@ -122,11 +138,13 @@ public final class InterviewDtos {
     }
 
     /**
-     * How the candidate did on one focus topic in this attempt. {@code averageScore} (0-10, one decimal) averages
-     * every resolved turn on the topic's questions, follow-ups included and skips counting as 0, so depth under
-     * probing shows; null until something on the topic is answered or skipped.
+     * How the candidate did on one focus topic in this attempt. {@code minScore}, {@code maxScore} and
+     * {@code lastScore} (0-10) cover every resolved turn on the topic's questions, follow-ups included and skips
+     * counting as 0, so depth under probing shows; "last" is the most recently resolved one. All null until
+     * something on the topic is answered or skipped.
      */
-    public record TopicResult(String topic, int questions, int answered, int skipped, Double averageScore) {
+    public record TopicResult(String topic, int questions, int answered, int skipped,
+                              Integer minScore, Integer maxScore, Integer lastScore) {
 
         static List<TopicResult> from(Interview i) {
             return i.getFocusTopics().stream().map(topic -> {
@@ -136,15 +154,17 @@ public final class InterviewDtos {
                         .filter(t -> !t.isFollowUp() && t.getPlannedQuestion() != null
                                 && topic.equals(t.getPlannedQuestion().getTopic()))
                         .toList();
-                double[] scores = i.getTurns().stream()
+                // Turns are ordered by sequence, so the last score is the most recent one on the topic.
+                List<Integer> scores = i.getTurns().stream()
                         .filter(t -> t.isResolved() && t.getScore() != null && t.getPlannedQuestion() != null
                                 && topic.equals(t.getPlannedQuestion().getTopic()))
-                        .mapToDouble(InterviewTurn::getScore).toArray();
-                Double average = scores.length == 0 ? null
-                        : Math.round(Arrays.stream(scores).average().orElseThrow() * 10) / 10.0;
+                        .map(InterviewTurn::getScore).toList();
                 return new TopicResult(topic, questions.size(),
                         (int) mains.stream().filter(InterviewTurn::isAnswered).count(),
-                        (int) mains.stream().filter(InterviewTurn::isSkipped).count(), average);
+                        (int) mains.stream().filter(InterviewTurn::isSkipped).count(),
+                        scores.stream().min(Integer::compare).orElse(null),
+                        scores.stream().max(Integer::compare).orElse(null),
+                        scores.isEmpty() ? null : scores.getLast());
             }).toList();
         }
     }

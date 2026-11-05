@@ -46,6 +46,15 @@ export interface InterviewerRef {
   photoUrl: string | null;
 }
 
+/** Languages the room's code editor supports. */
+export type CodeLanguage = 'JAVA' | 'PYTHON' | 'SQL';
+
+/** Code submitted with an answer. */
+export interface CodeSubmission {
+  language: CodeLanguage;
+  source: string;
+}
+
 export interface Turn {
   id: number;
   sequence: number;
@@ -66,6 +75,10 @@ export interface Turn {
   whiteboardRequested: boolean;
   /** PNG of the whiteboard submitted with the answer; null if the candidate didn't draw. */
   whiteboardUrl: string | null;
+  /** The interviewer asked for code in this language (the room opens the code editor); null if not. */
+  codeRequested: CodeLanguage | null;
+  /** Code submitted with the answer; null if the candidate wrote none. */
+  code: CodeSubmission | null;
 }
 
 /** Fields shared by the list and detail views of an interview. */
@@ -134,6 +147,10 @@ export interface QuestionResult {
   studyGuide: StudyGuide | null;
   /** PNG of the whiteboard submitted with the main answer; null if the candidate didn't draw. */
   whiteboardUrl: string | null;
+  /** The question is answered in the code editor, in this language; null if not. */
+  codeLanguage: CodeLanguage | null;
+  /** Code submitted with the main answer; null if the candidate wrote none. */
+  code: CodeSubmission | null;
 }
 
 export interface StudyTopic {
@@ -148,15 +165,18 @@ export interface StudyGuide {
 }
 
 /**
- * How one focus topic went in this attempt. `averageScore` (0-10) averages every resolved turn on the topic,
- * follow-ups included and skips as 0; null until something on it is answered or skipped.
+ * How one focus topic went in this attempt. `minScore` / `maxScore` / `lastScore` (0-10) cover every resolved turn
+ * on the topic, follow-ups included and skips as 0 (last = most recent); null until something on it is answered or
+ * skipped.
  */
 export interface TopicResult {
   topic: string;
   questions: number;
   answered: number;
   skipped: number;
-  averageScore: number | null;
+  minScore: number | null;
+  maxScore: number | null;
+  lastScore: number | null;
 }
 
 export interface TopicCategory {

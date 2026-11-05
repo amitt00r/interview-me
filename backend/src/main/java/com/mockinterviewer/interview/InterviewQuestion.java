@@ -4,6 +4,8 @@ import com.mockinterviewer.interviewer.Interviewer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -40,6 +42,11 @@ public class InterviewQuestion {
     /** The candidate is expected to sketch the answer on the whiteboard (e.g. system design). Nullable for ddl-auto. */
     private Boolean whiteboard;
 
+    /** The candidate is expected to write code in this language (the room opens the code editor); null otherwise. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private CodeLanguage codeLanguage;
+
     /** "Ask AI" model answer and reading list; null until the candidate asks for it. */
     @Embedded
     private StudyGuideNotes studyGuide;
@@ -57,13 +64,14 @@ public class InterviewQuestion {
     }
 
     InterviewQuestion(Interview interview, int position, Interviewer askedBy, String topic, String text,
-            boolean whiteboard) {
+            boolean whiteboard, CodeLanguage codeLanguage) {
         this.interview = interview;
         this.position = position;
         this.askedBy = askedBy;
         this.topic = topic;
         this.text = text;
         this.whiteboard = whiteboard;
+        this.codeLanguage = codeLanguage;
     }
 
     public Long getId() { return id; }
@@ -73,4 +81,5 @@ public class InterviewQuestion {
     public String getTopic() { return topic; }
     public String getText() { return text; }
     public boolean isWhiteboard() { return Boolean.TRUE.equals(whiteboard); }
+    public CodeLanguage getCodeLanguage() { return codeLanguage; }
 }

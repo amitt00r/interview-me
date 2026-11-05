@@ -9,12 +9,13 @@ All screenshots use fictional demo companies, interviewers and a fictional candi
 - [2. Start an interview](#2-start-an-interview)
 - [3. The interview room](#3-the-interview-room)
 - [4. Draw on the whiteboard](#4-draw-on-the-whiteboard)
-- [5. Read your report](#5-read-your-report)
-- [6. Ask AI for a better answer](#6-ask-ai-for-a-better-answer)
-- [7. Reattempt and track progress](#7-reattempt-and-track-progress)
-- [8. Nikolai, your coach](#8-nikolai-your-coach)
-- [9. Preferences](#9-preferences)
-- [10. Tips](#10-tips)
+- [5. Write code](#5-write-code)
+- [6. Read your report](#6-read-your-report)
+- [7. Ask AI for a better answer](#7-ask-ai-for-a-better-answer)
+- [8. Reattempt and track progress](#8-reattempt-and-track-progress)
+- [9. Nikolai, your coach](#9-nikolai-your-coach)
+- [10. Preferences](#10-preferences)
+- [11. Tips](#11-tips)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -49,7 +50,7 @@ Add at least one interviewer for one-on-one interviews and two or more for panel
 a staff engineer, a specialist or two) gives the AI more to choose from.
 
 > Tip: Nikolai can do this for you. Ask him "add Stripe with three interviewers" and he fills in sensible details.
-> See [section 8](#8-nikolai-your-coach).
+> See [section 9](#9-nikolai-your-coach).
 
 ## 2. Start an interview
 
@@ -132,7 +133,28 @@ Hands-free auto-send is paused while the board is open, so you can think and dra
 The **Whiteboard** button in the app header opens a full-window scratch board with the same components, outside any
 interview, for practising on your own.
 
-## 5. Read your report
+## 5. Write code
+
+For coding questions (implement a function, write a SQL query, fix a snippet) the interviewer will ask you to write
+code, and the code editor opens automatically in the language asked for. You can also press **Code** at any time. Like
+the whiteboard, it takes the stage and the interviewers shrink to a strip at the top.
+
+- The question appears at the top of the editor as a comment, so you can read it while you code; a follow-up that
+  asks for code is added above it the same way. These comments don't count as changes until you edit.
+- Pick **Java**, **Python** or **SQL** in the editor's toolbar (comments switch to the new language's syntax); for SQL you can also pick a dialect (Standard,
+  PostgreSQL or MySQL), which only changes the keywords suggested.
+- **Suggestions** autocomplete as you type: keywords, built-ins, names already in your code and common interview
+  snippets (try `for`, `main`, `HashMap`, `def`, `listcomp` or `import collections`). Real interviews often have no
+  autocomplete, so you can turn it off with the toolbar switch or on the **Preferences** page.
+- Talk through your approach in the answer box and **Submit** (or press `Ctrl` + `Enter` in the editor). Code on its
+  own is also a valid answer. The interviewer reads your code with what you said and judges correctness, edge cases,
+  complexity and readability. The code is never run.
+- Follow-ups can ask you to change your code (an edge case, a faster version); the code carries over to them, and
+  only code you changed is sent again. It is saved in the browser while you work, so a reload doesn't lose it.
+
+Hands-free auto-send is paused while the editor is open, so you can think and type. Press Submit when you're done.
+
+## 6. Read your report
 
 When the interview ends you're taken to the report. You can also open any past interview from the dashboard.
 
@@ -147,14 +169,14 @@ Scroll down for the details:
 
 ![Topics and questions](screenshots/report-topics-questions.jpg)
 
-- **By topic** (when the round had focus topics): questions, answered, skipped and the average score per topic,
-  follow-ups included.
-- **Questions**: every planned question with who asked it, your answer (and whiteboard, if you drew), its score out of 10
+- **By topic** (when the round had focus topics): questions, answered, skipped and the min, max and last score
+  per topic, follow-ups included (skips count as 0).
+- **Questions**: every planned question with who asked it, your answer (and whiteboard or code, if you used them), its score out of 10
   and feedback, followed by each follow-up. Questions you skipped or never reached are marked as such.
 
 Scores are calibrated like a demanding but fair interviewer: 3 is weak, 5 adequate, 7 strong, 9 to 10 exceptional.
 
-## 6. Ask AI for a better answer
+## 7. Ask AI for a better answer
 
 Every question and follow-up in a report has an **Ask AI** button next to its score.
 
@@ -162,14 +184,15 @@ Every question and follow-up in a report has an **Ask AI** button next to its sc
 
 It shows:
 
-- **Your answer** on the left.
+- **Your answer** on the left, with your code if you wrote any.
 - **A better answer** on the right: what a strong candidate for this role at this company would say, in the first
-  person, built from your real experience on your resume (it never invents employers or results).
+  person, built from your real experience on your resume (it never invents employers or results). For coding
+  questions it includes the code, highlighted.
 - **Read up on**: a prioritised list of topics, each tied to a gap in your answer, with a quick search link.
 
 It also works for questions you skipped or never reached. Each guide is generated once and saved with the report.
 
-## 7. Reattempt and track progress
+## 8. Reattempt and track progress
 
 Press **Re-attempt** on a report (or the circular button on a dashboard card) to retake an interview with **exactly the
 same questions**, the same panel and the same round. Follow-ups are generated fresh from your new answers. The new
@@ -184,7 +207,7 @@ The **Dashboard** tracks your progress:
   score, questions attempted, duration and the panel.
 - **Delete** (on the report) removes an interview together with all its reattempts.
 
-## 8. Nikolai, your coach
+## 9. Nikolai, your coach
 
 Nikolai is the friendly face in the bottom-right corner: a Russian career coach who can act inside the app for you.
 Press his face to open the chat.
@@ -205,7 +228,7 @@ The **headset** button in his header toggles hands-free. When it's on, he speaks
 finishes, sending what you say after a short pause. When it's off, he stays quiet and the mic only listens when you
 click it. **New chat** starts over.
 
-## 9. Preferences
+## 10. Preferences
 
 Open the gear menu and choose **Preferences**. Settings are saved in this browser.
 
@@ -214,13 +237,15 @@ Open the gear menu and choose **Preferences**. Settings are saved in this browse
 - **Theme**: light, dark, or follow your system.
 - **Nikolai's voice**, with a sample button for each, and his hands-free **pause before sending**.
 - **Interviews**: the default pause preselected when you start an interview.
+- **Code editor**: turn code suggestions (autocomplete) on or off.
 
-## 10. Tips
+## 11. Tips
 
 - **Paste the job description.** It makes questions noticeably more targeted.
 - **Use focus topics for weak spots.** One or two topics give you a deep, focused round and a per-topic score.
 - **Talk, don't type, when you can.** Hands-free with a short pause is the closest thing to the real pressure.
 - **Draw for design questions.** Interviewers expect it, and the feedback notices when you don't.
+- **Practise coding without suggestions** once you're comfortable, to match interviews that have no autocomplete.
 - **Read Ask AI after every interview,** then **re-attempt** a few days later and compare.
 
 ## Troubleshooting

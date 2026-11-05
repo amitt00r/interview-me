@@ -81,7 +81,9 @@ public class InterviewController {
     public InterviewDetail answer(@PathVariable Long id, @Valid @RequestBody AnswerRequest req) {
         var board = req.whiteboard() == null ? null : new InterviewService.WhiteboardUpload(
                 req.whiteboard().png(), req.whiteboard().scene(), req.whiteboard().outline());
-        return InterviewDetail.from(service.answer(id, req.answer(), req.responseSeconds(), board));
+        var code = req.code() == null ? null
+                : new InterviewService.CodeUpload(req.code().language(), req.code().source());
+        return InterviewDetail.from(service.answer(id, req.answer(), req.responseSeconds(), board, code));
     }
 
     /** The whiteboard a turn's answer was submitted with, as an image. Never changes once stored. */

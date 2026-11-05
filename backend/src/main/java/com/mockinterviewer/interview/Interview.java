@@ -180,7 +180,7 @@ public class Interview {
         copy.attempt = attempt;
         copy.answerPauseSeconds = original.getAnswerPauseSeconds();
         original.getPlan().forEach(q -> copy.plan(q.getAskedBy(), q.getTopic(), q.getText(),
-                q.isWhiteboard()));
+                q.isWhiteboard(), q.getCodeLanguage()));
         return copy;
     }
 
@@ -205,7 +205,13 @@ public class Interview {
 
     /** As above; {@code whiteboard} marks a question the candidate should sketch on the whiteboard. */
     public InterviewQuestion plan(Interviewer askedBy, String topic, String text, boolean whiteboard) {
-        InterviewQuestion q = new InterviewQuestion(this, plan.size() + 1, askedBy, topic, text, whiteboard);
+        return plan(askedBy, topic, text, whiteboard, null);
+    }
+
+    /** As above; {@code code} marks a question answered in the code editor, in that language (null: not). */
+    public InterviewQuestion plan(Interviewer askedBy, String topic, String text, boolean whiteboard,
+            CodeLanguage code) {
+        InterviewQuestion q = new InterviewQuestion(this, plan.size() + 1, askedBy, topic, text, whiteboard, code);
         plan.add(q);
         plannedQuestions = plannedQuestions == null ? plan.size() : Math.max(plannedQuestions, plan.size());
         return q;
@@ -213,7 +219,8 @@ public class Interview {
 
     /** Asks a planned question (a main turn). */
     public InterviewTurn ask(InterviewQuestion question) {
-        return addTurn(question, question.getAskedBy(), question.getText(), false, question.isWhiteboard());
+        return addTurn(question, question.getAskedBy(), question.getText(), false, question.isWhiteboard(),
+                question.getCodeLanguage());
     }
 
     /** Asks a follow-up on the planned question currently being discussed. */
@@ -223,7 +230,12 @@ public class Interview {
 
     /** As above; {@code whiteboard} asks the candidate to draw (or extend their drawing) on the whiteboard. */
     public InterviewTurn askFollowUp(Interviewer askedBy, String text, boolean whiteboard) {
-        return addTurn(currentQuestion().orElse(null), askedBy, text, true, whiteboard);
+        return askFollowUp(askedBy, text, whiteboard, null);
+    }
+
+    /** As above; {@code code} asks the candidate to write (or change) code in that language (null: not). */
+    public InterviewTurn askFollowUp(Interviewer askedBy, String text, boolean whiteboard, CodeLanguage code) {
+        return addTurn(currentQuestion().orElse(null), askedBy, text, true, whiteboard, code);
     }
 
     /** The planned question being discussed: the one the latest turn belongs to. */
@@ -247,8 +259,9 @@ public class Interview {
     }
 
     private InterviewTurn addTurn(InterviewQuestion question, Interviewer askedBy, String text, boolean followUp,
-            boolean whiteboard) {
-        InterviewTurn turn = new InterviewTurn(this, question, askedBy, turns.size() + 1, text, followUp, whiteboard);
+            boolean whiteboard, CodeLanguage code) {
+        InterviewTurn turn = new InterviewTurn(this, question, askedBy, turns.size() + 1, text, followUp, whiteboard,
+                code);
         turns.add(turn);
         return turn;
     }

@@ -1,5 +1,6 @@
 package com.mockinterviewer.interview;
 
+import com.mockinterviewer.ai.AiOutputs.CodeEditor;
 import com.mockinterviewer.ai.AiOutputs.FinalEvaluation;
 import com.mockinterviewer.ai.AiOutputs.PanelAssignment;
 import com.mockinterviewer.ai.AiOutputs.PlannedQuestion;
@@ -185,7 +186,11 @@ public class InterviewService {
             PlanSlot slot = slots.get(i);
             // With focus topics the label is the topic itself, so per-topic results add up.
             String topic = i == 0 ? "Introduction" : slot.topic() != null ? slot.topic() : blankToNull(planned.get(i).topic());
-            interview.plan(slot.askedBy(), topic, planned.get(i).question().strip(), i > 0 && planned.get(i).whiteboard());
+            PlannedQuestion q = planned.get(i);
+            boolean board = i > 0 && q.whiteboard();
+            // Never on the introduction; the whiteboard wins if both are asked for.
+            CodeLanguage code = i == 0 || board ? null : CodeEditor.language(q.code());
+            interview.plan(slot.askedBy(), topic, q.question().strip(), board, code);
         }
         interview.ask(interview.getPlan().getFirst());
         Interview saved = interviews.save(interview);
@@ -263,15 +268,32 @@ public class InterviewService {
      * answer may be empty: the board is the answer.
      */
     public Interview answer(Long id, String answerText, Integer responseSeconds, WhiteboardUpload whiteboard) {
+        return answer(id, answerText, responseSeconds, whiteboard, null);
+    }
+
+    /** The code editor's contents when the answer was submitted. */
+    public record CodeUpload(CodeLanguage language, String source) {
+    }
+
+    /**
+     * As above, with the candidate's code (null if they wrote none). With a drawing or code the spoken or typed
+     * answer may be empty.
+     */
+    public Interview answer(Long id, String answerText, Integer responseSeconds, WhiteboardUpload whiteboard,
+            CodeUpload codeUpload) {
         Interview interview = requireInProgress(id);
         InterviewTurn current = interview.pendingTurn()
                 .orElseThrow(() -> new BadRequestException("There is no question waiting for an answer."));
         TurnWhiteboard board = whiteboard(whiteboard);
         String text = answerText == null ? "" : answerText.strip();
-        if (text.isEmpty() && board == null) {
-            throw new BadRequestException("Type or say an answer, or draw it on the whiteboard.");
+        TurnCode code = code(codeUpload);
+        if (text.isEmpty() && board == null && code == null) {
+            throw new BadRequestException("Type or say an answer, draw it on the whiteboard or write it in the code editor.");
         }
-        current.recordAnswer(text.isEmpty() ? WHITEBOARD_ONLY_ANSWER : text, responseSeconds, board);
+        if (text.isEmpty()) {
+            text = code == null ? WHITEBOARD_ONLY_ANSWER : board == null ? CODE_ONLY_ANSWER : BOARD_AND_CODE_ANSWER;
+        }
+        current.recordAnswer(text, responseSeconds, board, code);
 
         boolean followUpAllowed = interview.followUpsOnCurrentQuestion() < props.maxFollowUps();
         Optional<InterviewQuestion> next = interview.nextPlannedQuestion();
@@ -284,7 +306,8 @@ public class InterviewService {
         logAnswered(interview, current);
 
         switch (resolveAction(decision.nextAction(), followUpAllowed, next.isPresent())) {
-            case FOLLOW_UP -> interview.askFollowUp(followUpSpeaker, requireQuestion(decision), decision.whiteboard());
+            case FOLLOW_UP -> interview.askFollowUp(followUpSpeaker, requireQuestion(decision), decision.whiteboard(),
+                    decision.whiteboard() ? null : CodeEditor.language(decision.code()));
             case NEXT_QUESTION -> interview.ask(next.orElseThrow());
             case END -> finish(interview);
         }
@@ -604,6 +627,26 @@ public class InterviewService {
 
     /** Stored as the answer text when the candidate only drew. */
     static final String WHITEBOARD_ONLY_ANSWER = "(Answered on the whiteboard.)";
+
+    /** Stored as the answer text when the candidate only wrote code. */
+    static final String CODE_ONLY_ANSWER = "(Answered in the code editor.)";
+
+    /** Stored as the answer text when the candidate drew and wrote code but said nothing. */
+    static final String BOARD_AND_CODE_ANSWER = "(Answered on the whiteboard and in the code editor.)";
+
+    private static TurnCode code(CodeUpload upload) {
+        if (upload == null || upload.source() == null || upload.source().isBlank()) {
+            return null;
+        }
+        if (upload.language() == null) {
+            throw new BadRequestException("Choose the code's language.");
+        }
+        if (upload.source().length() > TurnCode.MAX_SOURCE_CHARS) {
+            throw new BadRequestException("The code is too long (at most " + TurnCode.MAX_SOURCE_CHARS
+                    + " characters).");
+        }
+        return new TurnCode(upload.language(), upload.source());
+    }
 
     private static TurnWhiteboard whiteboard(WhiteboardUpload upload) {
         if (upload == null || upload.png() == null || upload.png().length == 0) {

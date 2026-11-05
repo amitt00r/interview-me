@@ -5,6 +5,8 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -77,6 +79,18 @@ public class InterviewTurn {
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private TurnWhiteboard whiteboard;
 
+    /**
+     * The interviewer asked the candidate to write code in this language (the room opens the code editor). Null when
+     * not asked.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private CodeLanguage codeRequested;
+
+    /** The code submitted with the answer, if the candidate wrote any. */
+    @Embedded
+    private TurnCode code;
+
     /** "Ask AI" model answer and reading list for a follow-up; null until asked for (main questions keep theirs on the plan). */
     @Embedded
     private StudyGuideNotes studyGuide;
@@ -85,7 +99,7 @@ public class InterviewTurn {
     }
 
     InterviewTurn(Interview interview, InterviewQuestion plannedQuestion, Interviewer askedBy, int sequence,
-            String question, boolean followUp, boolean whiteboardRequested) {
+            String question, boolean followUp, boolean whiteboardRequested, CodeLanguage codeRequested) {
         this.interview = interview;
         this.plannedQuestion = plannedQuestion;
         this.askedBy = askedBy;
@@ -93,14 +107,21 @@ public class InterviewTurn {
         this.question = question;
         this.followUp = followUp;
         this.whiteboardRequested = whiteboardRequested;
+        this.codeRequested = codeRequested;
     }
 
     /** {@code whiteboard} is null when the candidate didn't draw. */
     public void recordAnswer(String answer, Integer responseSeconds, TurnWhiteboard whiteboard) {
+        recordAnswer(answer, responseSeconds, whiteboard, null);
+    }
+
+    /** As above; {@code code} is null when the candidate wrote no code. */
+    public void recordAnswer(String answer, Integer responseSeconds, TurnWhiteboard whiteboard, TurnCode code) {
         this.answer = answer;
         this.answeredAt = Instant.now();
         this.responseSeconds = responseSeconds;
         this.whiteboard = whiteboard;
+        this.code = code;
     }
 
     public void recordEvaluation(int score, String feedback) {
@@ -160,6 +181,11 @@ public class InterviewTurn {
     /** May be an uninitialised proxy; null-checking it doesn't load the image. */
     public TurnWhiteboard getWhiteboard() { return whiteboard; }
     public boolean hasWhiteboard() { return whiteboard != null; }
+    /** The language the interviewer asked the candidate to code in; null when not asked. */
+    public CodeLanguage getCodeRequested() { return codeRequested; }
+    /** The submitted code, or null. */
+    public TurnCode getCode() { return TurnCode.present(code) ? code : null; }
+    public boolean hasCode() { return TurnCode.present(code); }
     public String getAnswer() { return answer; }
     public Integer getResponseSeconds() { return responseSeconds; }
     public Integer getScore() { return score; }

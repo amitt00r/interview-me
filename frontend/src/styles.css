@@ -83,8 +83,8 @@
    * Whiteboard open: the room breaks out of the page's centred container to the full window width (keeping a
    * small gutter) and the chat narrows, so the board gets as much width as possible.
    */
-  .room.board-mode { margin-inline: calc(50% - 50vw + var(--mantine-spacing-md)); }
-  .room.board-mode .room-body, .room.board-mode .room-header { grid-template-columns: minmax(0, 1fr) 340px; }
+  .room.workspace-mode { margin-inline: calc(50% - 50vw + var(--mantine-spacing-md)); }
+  .room.workspace-mode .room-body, .room.workspace-mode .room-header { grid-template-columns: minmax(0, 1fr) 340px; }
 }
 @media (max-width: 62em) {
   .room { height: auto; }
@@ -219,6 +219,27 @@
 .whiteboard-canvas { position: absolute; inset: 0; }
 .board-thumb { max-width: 220px; background: #fff; cursor: zoom-in; }
 .report-board { max-width: min(100%, 560px); max-height: 360px; object-fit: contain; background: #fff; border: 1px solid var(--app-border); cursor: zoom-in; }
+
+/* Code editor (room): toolbar over a CodeMirror surface that fills the stage */
+.code-editor { display: flex; flex-direction: column; height: 100%; }
+.code-toolbar { border-bottom: 1px solid var(--mantine-color-default-border); background: var(--app-subtle); }
+.code-surface { flex: 1; min-height: 0; overflow: hidden; }
+.code-surface > div, .code-surface .cm-editor { height: 100%; }
+.code-surface .cm-editor { font-size: 14px; }
+.code-surface .cm-editor.cm-focused { outline: none; }
+
+/* Read-only code (chat, report, Ask AI): highlight.js token colours from Mantine's palette, both schemes */
+.code-block { font-size: 0.8125rem; text-align: left; color: var(--mantine-color-text); }
+.bubble.candidate .code-block { max-width: 100%; }
+.code-block .hljs-keyword, .code-block .hljs-built_in, .code-block .hljs-type,
+.code-block .hljs-selector-tag { color: light-dark(var(--mantine-color-violet-8), var(--mantine-color-violet-3)); }
+.code-block .hljs-string, .code-block .hljs-regexp { color: light-dark(var(--mantine-color-green-9), var(--mantine-color-green-4)); }
+.code-block .hljs-number, .code-block .hljs-literal { color: light-dark(var(--mantine-color-orange-9), var(--mantine-color-orange-4)); }
+.code-block .hljs-comment, .code-block .hljs-quote { color: var(--mantine-color-dimmed); font-style: italic; }
+.code-block .hljs-title, .code-block .hljs-function .hljs-title,
+.code-block .hljs-title.function_ { color: light-dark(var(--mantine-color-blue-8), var(--mantine-color-blue-3)); }
+.code-block .hljs-title.class_, .code-block .hljs-class .hljs-title { color: light-dark(var(--mantine-color-cyan-9), var(--mantine-color-cyan-4)); }
+.code-block .hljs-meta, .code-block .hljs-attr, .code-block .hljs-params { color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-4)); }
 
 /* Standalone whiteboard page: the board fills the window (no app header) */
 .whiteboard-page { position: fixed; inset: 0; }

@@ -5,9 +5,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, formatDate, formatDuration, modeLabel, scoreColor } from '../api';
 import { avatarFor } from '../avatar';
 import AskAi from '../components/AskAi';
+import { CodeBlock } from '../components/CodeBlock';
 import { ScoreBadge } from '../components/ScoreBadge';
 import { confirmAction, notifyError } from '../feedback';
-import type { InterviewDetail } from '../types';
+import type { CodeSubmission, InterviewDetail } from '../types';
 import { useAsync } from '../useAsync';
 
 export default function InterviewReport({ interview }: { interview: InterviewDetail }) {
@@ -28,7 +29,11 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
     previousDetail.data?.questions.find((q) => q.position === position)?.score ?? null;
   // Reattempts copy the round, so topics line up by name.
   const previousTopicScore = (topic: string) =>
-    previousDetail.data?.topicResults.find((t) => t.topic === topic)?.averageScore ?? null;
+    previousDetail.data?.topicResults.find((t) => t.topic === topic)?.lastScore ?? null;
+
+  const topicScore = (score: number | null) => score === null ? <Text c="dimmed">—</Text> : (
+    <Badge color={scoreColor(score, 10)} variant="light">{score}/10</Badge>
+  );
 
   // Back to wherever the user came from; home if they opened this report directly (no in-app history).
   const goBack = () => {
@@ -198,7 +203,8 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Topic</Table.Th><Table.Th>Questions</Table.Th><Table.Th>Answered</Table.Th>
-                  <Table.Th>Skipped</Table.Th><Table.Th>Average</Table.Th>
+                  <Table.Th>Skipped</Table.Th><Table.Th>Min</Table.Th><Table.Th>Max</Table.Th>
+                  <Table.Th>Last score</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -210,13 +216,13 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
                       <Table.Td>{t.questions}</Table.Td>
                       <Table.Td>{t.answered}</Table.Td>
                       <Table.Td>{t.skipped}</Table.Td>
+                      <Table.Td>{topicScore(t.minScore)}</Table.Td>
+                      <Table.Td>{topicScore(t.maxScore)}</Table.Td>
                       <Table.Td>
                         <Group gap="xs">
-                          {t.averageScore === null ? <Text c="dimmed">—</Text> : (
-                            <Badge color={scoreColor(t.averageScore, 10)} variant="light">{t.averageScore}/10</Badge>
-                          )}
+                          {topicScore(t.lastScore)}
                           {was !== null && (
-                            <Tooltip label={`Average in attempt ${previous!.attempt}`}>
+                            <Tooltip label={`Last score in attempt ${previous!.attempt}`}>
                               <Text size="xs" c="dimmed">was {was}</Text>
                             </Tooltip>
                           )}
@@ -228,7 +234,7 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
-          <Text size="xs" c="dimmed" mt="xs">Averages include follow-ups; skipped questions count as 0.</Text>
+          <Text size="xs" c="dimmed" mt="xs">Scores include follow-ups; skipped questions count as 0. Last score is the most recent one on the topic.</Text>
         </Card>
       )}
 
@@ -252,7 +258,7 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
                 <AskAi label={`Q${q.position}`} question={q.question} initial={q.studyGuide}
                   answer={q.status === 'ANSWERED' && q.answer ? { text: q.answer, given: true }
                     : { text: q.status === 'SKIPPED' ? 'You skipped this question.' : 'You did not reach this question.', given: false }}
-                  score={q.score}
+                  code={q.status === 'ANSWERED' ? q.code : null} score={q.score}
                   load={() => api.interviews.studyGuide(interview.id, q.id)} />
                 <ScoreBadge status={q.status} score={q.score} />
               </Group>
@@ -261,6 +267,7 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
               placeholder={q.status === 'SKIPPED' ? 'You skipped this question.'
                 : q.status === 'NOT_ATTEMPTED' ? 'Not attempted in this attempt.' : null}
               feedback={q.feedback} whiteboardUrl={q.status === 'ANSWERED' ? q.whiteboardUrl : null}
+              code={q.status === 'ANSWERED' ? q.code : null}
               time={q.responseSeconds !== null
                 ? `${q.status === 'SKIPPED' ? 'Skipped after' : 'Answered in'} ${formatDuration(q.responseSeconds)}` : null} />
 
@@ -278,14 +285,14 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
                     {(f.answer || f.skipped) && (
                       <AskAi label={`Q${q.position} · Follow-up ${n + 1}`} question={f.question}
                         answer={f.answer ? { text: f.answer, given: true } : { text: 'You skipped this follow-up.', given: false }}
-                        score={f.score}
+                        code={f.code} score={f.score}
                         initial={f.studyGuide} load={() => api.interviews.followUpStudyGuide(interview.id, f.id)} />
                     )}
                     <ScoreBadge status={f.skipped ? 'SKIPPED' : f.answer ? 'ANSWERED' : 'CURRENT'} score={f.score} />
                   </Group>
                 </Group>
                 <QA question={f.question} answer={f.answer} placeholder={f.skipped ? 'You skipped this follow-up.' : null}
-                  feedback={f.skipped ? null : f.feedback} whiteboardUrl={f.whiteboardUrl} time={null} />
+                  feedback={f.skipped ? null : f.feedback} whiteboardUrl={f.whiteboardUrl} code={f.code} time={null} />
               </Box>
             ))}
           </Card>
@@ -296,13 +303,15 @@ export default function InterviewReport({ interview }: { interview: InterviewDet
 }
 
 /** A question, the candidate's answer (or why there is none), the interviewer's feedback and timing. */
-function QA({ question, answer, placeholder, feedback, whiteboardUrl, time }: {
+function QA({ question, answer, placeholder, feedback, whiteboardUrl, code, time }: {
   question: string;
   answer: string | null;
   placeholder: string | null;
   feedback: string | null;
   /** The whiteboard drawn with this answer, if any. */
   whiteboardUrl?: string | null;
+  /** The code written with this answer, if any. */
+  code?: CodeSubmission | null;
   time: string | null;
 }) {
   return (
@@ -314,6 +323,7 @@ function QA({ question, answer, placeholder, feedback, whiteboardUrl, time }: {
           <Image src={whiteboardUrl} alt="Your whiteboard" className="report-board" />
         </Anchor>
       )}
+      {code && <CodeBlock code={code} compact />}
       {!answer && placeholder && <Paper p="sm" className="answer-box"><Text size="sm" c="dimmed">{placeholder}</Text></Paper>}
       {feedback && <Text size="sm" c="dimmed" fs="italic">{feedback}</Text>}
       {time && <Text size="xs" c="dimmed">{time}</Text>}

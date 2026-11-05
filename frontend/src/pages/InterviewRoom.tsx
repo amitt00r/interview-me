@@ -1,5 +1,5 @@
 import { ActionIcon, Alert, Anchor, Avatar, Badge, Button, Center, Group, Image, Kbd, Loader, Modal, Paper, Stack, Switch, Text, Textarea, ThemeIcon, Title, Tooltip } from '@mantine/core';
-import { IconChalkboard, IconClock, IconMessages, IconHourglassHigh, IconMicrophone, IconMicrophoneOff, IconPhoneOff, IconPlayerSkipForward, IconSend, IconVideo, IconVideoOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
+import { IconChalkboard, IconClock, IconCode, IconMessages, IconHourglassHigh, IconMicrophone, IconMicrophoneOff, IconPhoneOff, IconPlayerSkipForward, IconSend, IconVideo, IconVideoOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { api, modeLabel } from '../api';
 import { avatarFor } from '../avatar';
@@ -15,9 +15,16 @@ import type { InterviewDetail, InterviewerRef } from '../types';
 import { voiceFor } from '../voices';
 import { setHeaderHidden } from '../chrome';
 import { clearDrafts, isEmpty, loadDraft, parseScene, saveDraft, sceneVersion, snapshot, type Scene } from '../whiteboard';
+import { clearCodeDrafts, convertComments, isCodeDirty, languageLabel, lastLanguage, loadCodeDraft, MAX_SOURCE_CHARS, questionComment, rememberLanguage, saveCodeDraft, starterSource, type CodeBuffer } from '../codepad';
+import { CodeBlock } from '../components/CodeBlock';
+import type { CodeLanguage } from '../types';
 
-// Excalidraw is a large bundle: load it the first time the whiteboard opens.
+// Excalidraw is a large bundle: load it the first time the whiteboard opens. Likewise the code editor.
 const Whiteboard = lazy(() => import('../components/Whiteboard'));
+const CodeEditor = lazy(() => import('../components/CodeEditor'));
+
+/** What takes the stage besides the video call: the whiteboard or the code editor (one at a time). */
+type Workspace = 'none' | 'board' | 'code';
 
 type Speech = { enabled: boolean; reason: string | null } | null;
 
@@ -55,7 +62,9 @@ export default function InterviewRoom({ interview, onUpdate }: {
 
   // Whiteboard: one board per main question, carried through its follow-ups. `sceneRef` is the live drawing;
   // `board.initial` is what the editor opens with (refreshed when it closes, since closing unmounts it).
-  const [boardOpen, setBoardOpen] = useState(false);
+  const [workspace, setWorkspace] = useState<Workspace>('none');
+  const boardOpen = workspace === 'board';
+  const codeOpen = workspace === 'code';
   // The room gets the whole window: the app header is hidden while in it (restored on leaving).
   useEffect(() => {
     setHeaderHidden(true);
@@ -70,6 +79,35 @@ export default function InterviewRoom({ interview, onUpdate }: {
   const mainIndex = interview.turns.findLastIndex((t) => !t.followUp);
   const questionTurns = mainIndex < 0 ? [] : interview.turns.slice(mainIndex);
   const questionTurnId = questionTurns[0]?.id ?? null;
+
+  // Code editor: likewise one buffer per main question, carried through its follow-ups; `codeRef` mirrors it for
+  // submit and the silence clock.
+  const [code, setCodeState] = useState<CodeBuffer | null>(null);
+  const codeRef = useRef<CodeBuffer | null>(null);
+  const codeDraftTimer = useRef<number | undefined>(undefined);
+  // This question's buffer came from a draft: the candidate's own language choice stands.
+  const codeDraftLoaded = useRef(false);
+  const setCode = (buffer: CodeBuffer | null, save = true) => {
+    codeRef.current = buffer;
+    setCodeState(buffer);
+    const key = questionTurnId;
+    if (!save || !buffer || key === null) return;
+    window.clearTimeout(codeDraftTimer.current);
+    codeDraftTimer.current = window.setTimeout(() => saveCodeDraft(interview.id, key, buffer), 400);
+  };
+  const codeDirty = isCodeDirty(code);
+
+  // "Question 2 · SQL: signup-to-purchase conversion · Dana Reyes": the title of the comment at the top of the code.
+  const questionPosition = interview.turns.slice(0, mainIndex + 1).filter((t) => !t.followUp).length;
+  const questionTitle = [`Question ${questionPosition}`, interview.questions[questionPosition - 1]?.topic,
+    questionTurns[0]?.askedBy.name].filter(Boolean).join(' · ');
+
+  // Comments follow the language, so the question stays a valid comment after switching.
+  const changeLanguage = (buffer: CodeBuffer, language: CodeLanguage): CodeBuffer => ({
+    language,
+    source: convertComments(buffer.source, buffer.language, language),
+    submittedSource: convertComments(buffer.submittedSource, buffer.language, language),
+  });
 
   const markBoardDirty = (dirty: boolean) => {
     boardDirtyRef.current = dirty;
@@ -104,14 +142,16 @@ export default function InterviewRoom({ interview, onUpdate }: {
   }, [interview.turns.length, busy, partial]);
 
   // Hands-free: after the chosen pause, submit what was said (nothing said, nothing sent).
-  // Never while the whiteboard is open: drawing takes thought and silence, so the candidate submits themselves.
-  const listeningHandsFree = mic === 'on' && handsFree && !busy && !!pending && !boardOpen;
+  // Never while the whiteboard or code editor is open: drawing and coding take thought and silence, so the
+  // candidate submits themselves.
+  const listeningHandsFree = mic === 'on' && handsFree && !busy && !!pending && workspace === 'none';
   // The pause chosen when starting the interview; the countdown shows for the last 5 s (half, for short pauses).
   const pauseMs = interview.answerPauseSeconds * 1000;
   const silenceTiming = useMemo(() => ({ submitMs: pauseMs, warningMs: Math.max(pauseMs - 5000, pauseMs / 2) }),
     [pauseMs]);
   const silence = useSilenceSubmit(listeningHandsFree,
-    () => answerRef.current.trim().length > 0 || boardDirtyRef.current, () => { void submit(); }, silenceTiming);
+    () => answerRef.current.trim().length > 0 || boardDirtyRef.current || isCodeDirty(codeRef.current),
+    () => { void submit(); }, silenceTiming);
   const heard = silence.heard;
 
   // A new main question gets its own board: this browser's unsent draft, else the last one submitted for it.
@@ -140,17 +180,75 @@ export default function InterviewRoom({ interview, onUpdate }: {
     };
   }, [interview.id, questionTurnId]);
 
-  const showBoard = useCallback((open: boolean) => {
-    if (!open) setBoard((b) => b && { ...b, initial: sceneRef.current });
-    setBoardOpen(open);
-  }, []);
+  // A new main question gets its own code buffer: this browser's unsent draft, else the last code submitted for it,
+  // else empty in the language the question asks for (or the one used last).
+  useEffect(() => {
+    if (questionTurnId === null) return;
+    const draft = loadCodeDraft(interview.id, questionTurnId);
+    codeDraftLoaded.current = draft !== null;
+    const last = questionTurns.findLast((t) => t.code)?.code;
+    const language = questionTurns.findLast((t) => t.codeRequested)?.codeRequested ?? lastLanguage();
+    // A fresh buffer starts with the question as a comment; it counts as unchanged until the candidate edits.
+    const starter = starterSource(language, questionTitle, questionTurns[0].question);
+    setCode(draft ?? (last ? { ...last, submittedSource: last.source }
+      : { language, source: starter, submittedSource: starter }), false);
+  }, [interview.id, questionTurnId]);
 
-  // The interviewer asked for a drawing: open the board. A new main question that doesn't need one closes it.
+  // Opens the whiteboard or code editor in place of the video call, or goes back to the call. Closing the board
+  // unmounts the editor, so its opening scene is refreshed; the code buffer lives in the room either way.
+  const showWorkspace = useCallback((next: Workspace) => {
+    setWorkspace((prev) => {
+      if (prev === 'board' && next !== 'board') setBoard((b) => b && { ...b, initial: sceneRef.current });
+      return next;
+    });
+  }, []);
+  const toggleWorkspace = (w: Exclude<Workspace, 'none'>) => showWorkspace(workspace === w ? 'none' : w);
+
+  // The interviewer asked for a drawing or code: open the board or the editor (in the language asked for, unless
+  // code is already written). A new main question that needs neither goes back to the call.
   useEffect(() => {
     if (!pending) return;
-    if (pending.whiteboardRequested) showBoard(true);
-    else if (!pending.followUp) showBoard(false);
+    if (pending.whiteboardRequested) {
+      showWorkspace('board');
+    } else if (pending.codeRequested) {
+      const requested = pending.codeRequested;
+      let buffer = codeRef.current;
+      // Untouched so far: switch to the language asked for.
+      if (buffer && buffer.language !== requested && buffer.source === buffer.submittedSource
+        && !codeDraftLoaded.current && !questionTurns.some((t) => t.code)) {
+        buffer = changeLanguage(buffer, requested);
+      }
+      // A follow-up asking for code goes on top of the code as a comment too (once, also across reloads).
+      if (buffer && pending.followUp) {
+        const followUps = questionTurns.filter((t) => t.followUp);
+        const block = questionComment(buffer.language,
+          `Follow-up ${followUps.findIndex((t) => t.id === pending.id) + 1} · ${pending.askedBy.name}`, pending.question);
+        if (!buffer.source.includes(block)) {
+          const unchanged = buffer.source === buffer.submittedSource;
+          const source = `${block}\n${buffer.source}`;
+          // Not a change of the candidate's: unchanged code stays unchanged.
+          buffer = { ...buffer, source, submittedSource: unchanged ? source : buffer.submittedSource };
+        }
+      }
+      if (buffer && buffer !== codeRef.current) setCode(buffer);
+      showWorkspace('code');
+    } else if (!pending.followUp) {
+      showWorkspace('none');
+    }
   }, [pending?.id]);
+
+  const onCodeChange = (source: string) => {
+    const buffer = codeRef.current;
+    if (!buffer) return;
+    setCode({ ...buffer, source });
+    heard();
+  };
+  const onLanguageChange = (language: CodeLanguage) => {
+    const buffer = codeRef.current;
+    if (!buffer) return;
+    rememberLanguage(language);
+    setCode(changeLanguage(buffer, language));
+  };
 
   // Track the drawing (auto-send is off while the board is open; this keeps the silence clock fresh for when it
   // closes), and save the board as a draft.
@@ -168,7 +266,10 @@ export default function InterviewRoom({ interview, onUpdate }: {
   const onBoardChange = useCallback((scene: Scene) => onBoardChangeRef.current(scene), []);
 
   const applyUpdate = (updated: InterviewDetail) => {
-    if (updated.status !== 'IN_PROGRESS') clearDrafts(updated.id);
+    if (updated.status !== 'IN_PROGRESS') {
+      clearDrafts(updated.id);
+      clearCodeDrafts(updated.id);
+    }
     onUpdate(updated);
   };
 
@@ -259,7 +360,14 @@ export default function InterviewRoom({ interview, onUpdate }: {
     const scene = sceneRef.current;
     const version = sceneVersion(scene);
     const sendBoard = scene !== null && !isEmpty(scene) && version !== submittedVersionRef.current;
-    if (!text && !sendBoard) return;
+    // Likewise the code.
+    const buffer = codeRef.current;
+    const sendCode = isCodeDirty(buffer);
+    if (!text && !sendBoard && !sendCode) return;
+    if (sendCode && buffer!.source.length > MAX_SOURCE_CHARS) {
+      setError(`Your code is too long to send (at most ${MAX_SOURCE_CHARS.toLocaleString()} characters).`);
+      return;
+    }
     stopSpeaking();
     const seconds = elapsedSeconds();
     setFrozenSeconds(seconds);
@@ -267,7 +375,13 @@ export default function InterviewRoom({ interview, onUpdate }: {
     setError(null);
     try {
       const drawing = sendBoard ? await snapshot(scene) : null;
-      const updated = await api.interviews.answer(interview.id, text, seconds, drawing);
+      const sentCode = sendCode ? { language: buffer!.language, source: buffer!.source } : null;
+      const updated = await api.interviews.answer(interview.id, text, seconds, drawing, sentCode);
+      if (sentCode) {
+        // Edits made while it was being scored stay unsent.
+        const now = codeRef.current ?? buffer!;
+        setCode({ ...now, submittedSource: sentCode.source });
+      }
       if (sendBoard) {
         submittedVersionRef.current = version;
         markBoardDirty(sceneVersion(sceneRef.current) !== version);
@@ -348,7 +462,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
   );
 
   return (
-    <div className={boardOpen ? 'room board-mode' : 'room'}>
+    <div className={workspace !== 'none' ? 'room workspace-mode' : 'room'}>
       {/* Same columns as the body: title and Skip over the people, timers over the chat. */}
       <div className="room-header">
         <Group justify="space-between" wrap="nowrap" gap="sm">
@@ -387,7 +501,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
 
       <div className="room-body">
         <div className="stage-col">
-          {boardOpen ? (
+          {workspace !== 'none' ? (
             <>
               <div className="stage filmstrip">
                 {interview.interviewers.map((i) => <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} />)}
@@ -397,8 +511,12 @@ export default function InterviewRoom({ interview, onUpdate }: {
               <Paper withBorder className="whiteboard">
                 <div className="whiteboard-canvas">
                   <Suspense fallback={<Center h="100%"><Loader /></Center>}>
-                    {board ? <Whiteboard key={board.key} initial={board.initial} onChange={onBoardChange} />
-                      : <Center h="100%"><Loader /></Center>}
+                    {boardOpen && (board ? <Whiteboard key={board.key} initial={board.initial} onChange={onBoardChange} />
+                      : <Center h="100%"><Loader /></Center>)}
+                    {codeOpen && code && (
+                      <CodeEditor key={questionTurnId ?? 0} language={code.language} source={code.source}
+                        onLanguageChange={onLanguageChange} onSourceChange={onCodeChange} onSubmit={() => { void submit(); }} />
+                    )}
                   </Suspense>
                 </div>
               </Paper>
@@ -437,14 +555,22 @@ export default function InterviewRoom({ interview, onUpdate }: {
             </Button>
             <Tooltip label={boardOpen ? 'Back to the video call (your drawing is kept)'
               : 'Sketch your answer. The drawing is sent with your next answer.'}>
-              <Button variant={boardOpen ? 'filled' : 'default'} onClick={() => showBoard(!boardOpen)}
+              <Button variant={boardOpen ? 'filled' : 'default'} onClick={() => toggleWorkspace('board')}
                 leftSection={<IconChalkboard size={18} />}
                 rightSection={boardDirty && !boardOpen ? <Badge size="xs" circle>•</Badge> : undefined}>
                 Whiteboard
               </Button>
             </Tooltip>
-            <Tooltip label={boardOpen
-              ? 'Auto-send is paused while the whiteboard is open: press Submit when you are done'
+            <Tooltip label={codeOpen ? 'Back to the video call (your code is kept)'
+              : 'Write Java, Python or SQL. The code is sent with your next answer.'}>
+              <Button variant={codeOpen ? 'filled' : 'default'} onClick={() => toggleWorkspace('code')}
+                leftSection={<IconCode size={18} />}
+                rightSection={codeDirty && !codeOpen ? <Badge size="xs" circle>•</Badge> : undefined}>
+                Code
+              </Button>
+            </Tooltip>
+            <Tooltip label={workspace !== 'none'
+              ? `Auto-send is paused while the ${boardOpen ? 'whiteboard' : 'code editor'} is open: press Submit when you are done`
               : `Open the mic after each question, and submit after ${interview.answerPauseSeconds} seconds of silence`}>
               <Paper withBorder px="md" py={7}>
                 <Switch size="sm" label="Hands-free" checked={handsFree} disabled={!voiceReady}
@@ -482,6 +608,11 @@ export default function InterviewRoom({ interview, onUpdate }: {
                           Whiteboard
                         </Badge>
                       )}
+                      {t.codeRequested && (
+                        <Badge size="xs" variant="light" color="teal" leftSection={<IconCode size={10} />}>
+                          {languageLabel(t.codeRequested)}
+                        </Badge>
+                      )}
                       {/* Replay: on the question waiting for an answer (the last message), when voice is on. */}
                       {t.id === pending?.id && voiceReady && (
                         <Tooltip label={voiceOn ? 'Replay the question' : 'Turn Voice on to replay'}>
@@ -503,6 +634,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
                         <Image src={t.whiteboardUrl} alt="Your whiteboard" mt={6} className="board-thumb" />
                       </Anchor>
                     )}
+                    {t.code && <CodeBlock code={t.code} mt={6} compact />}
                   </div>
                 )}
                 {t.skipped && <div className="bubble candidate skipped"><p>Skipped</p></div>}
@@ -525,20 +657,25 @@ export default function InterviewRoom({ interview, onUpdate }: {
             <Textarea autosize minRows={3} maxRows={8} value={answer} onChange={(e) => updateAnswer(e.currentTarget.value)}
               onKeyDown={onKeyDown} disabled={!!busy || !pending}
               placeholder={listening ? 'Listening… your words appear here'
-                : boardDirty ? 'Explain your drawing, or just submit it…' : 'Type or speak your answer…'} />
+                : boardDirty ? 'Explain your drawing, or just submit it…'
+                  : codeDirty ? 'Explain your code, or just submit it…' : 'Type or speak your answer…'} />
             {boardDirty && (
               <Text size="xs" c="dimmed"><IconChalkboard size={12} className="inline-icon" /> Your whiteboard changes
                 will be sent with this answer.</Text>
             )}
-            {boardOpen && handsFree && voiceReady && (
-              <Text size="xs" c="dimmed">Auto-send is paused while the whiteboard is open. Press <b>Submit</b> when
-                you're done.</Text>
+            {codeDirty && (
+              <Text size="xs" c="dimmed"><IconCode size={12} className="inline-icon" /> Your code changes will be sent
+                with this answer.</Text>
+            )}
+            {workspace !== 'none' && handsFree && voiceReady && (
+              <Text size="xs" c="dimmed">Auto-send is paused while the {boardOpen ? 'whiteboard' : 'code editor'} is
+                open. Press <b>Submit</b> when you're done.</Text>
             )}
             {partial && <Text size="sm" c="dimmed" fs="italic">{partial}…</Text>}
             <Group justify="space-between">
               <Text size="xs" c="dimmed"><Kbd size="xs">Ctrl</Kbd> + <Kbd size="xs">Enter</Kbd></Text>
               <Group gap="xs">
-                <Button onClick={submit} disabled={!!busy || !pending || (!answer.trim() && !listening && !boardDirty)}
+                <Button onClick={submit} disabled={!!busy || !pending || (!answer.trim() && !listening && !boardDirty && !codeDirty)}
                   loading={busy === 'answer'} leftSection={<IconSend size={16} />}>
                   Submit
                 </Button>
@@ -573,8 +710,8 @@ export default function InterviewRoom({ interview, onUpdate }: {
           {speech === null && <Text size="sm" c="dimmed">Checking voice service…</Text>}
           {speech?.enabled && (
             <Text size="sm">Interviewers will speak their questions. Use <b>Speak</b> to answer by voice, or just
-              type. For design questions, open the <b>Whiteboard</b> and sketch: your drawing goes to the interviewers
-              with your answer. Your camera stays on this device and is never recorded.</Text>
+              type. For design questions, open the <b>Whiteboard</b> and sketch; for coding questions, open <b>Code</b>{' '}
+              and write Java, Python or SQL: your drawing or code goes to the interviewers with your answer. Your camera stays on this device and is never recorded.</Text>
           )}
           {speech && !speech.enabled && <Alert color="yellow">{speech.reason} You can still type answers.</Alert>}
           <Group>

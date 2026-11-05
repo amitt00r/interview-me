@@ -1,8 +1,8 @@
-import { ActionIcon, Card, Group, Radio, SegmentedControl, Stack, Text, ThemeIcon, Title, Tooltip, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
-import { IconDeviceDesktop, IconMessageCircle, IconMoon, IconPalette, IconPlayerPlay, IconSun, IconVideo } from '@tabler/icons-react';
+import { ActionIcon, Card, Group, Radio, SegmentedControl, Stack, Switch, Text, ThemeIcon, Title, Tooltip, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { IconCode, IconDeviceDesktop, IconMessageCircle, IconMoon, IconPalette, IconPlayerPlay, IconSun, IconVideo } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import { NIKOLAI_VOICES, setNikolaiVoice, useNikolaiVoice } from '../nikolai';
-import { CHAT_PAUSE, INTERVIEW_PAUSE, setPref, usePref } from '../preferences';
+import { CHAT_PAUSE, CODE_SUGGESTIONS, INTERVIEW_PAUSE, setFlag, setPref, useFlag, usePref } from '../preferences';
 import { checkSpeech, speak, stopSpeaking } from '../speech';
 import { useAsync } from '../useAsync';
 
@@ -17,6 +17,7 @@ export default function PreferencesPage() {
   const voice = useNikolaiVoice();
   const chatPause = usePref(CHAT_PAUSE);
   const interviewPause = usePref(INTERVIEW_PAUSE);
+  const codeSuggestions = useFlag(CODE_SUGGESTIONS);
   const speech = useAsync(checkSpeech);
 
   const preview = (id: string) => {
@@ -71,6 +72,14 @@ export default function PreferencesPage() {
           description="Preselected when you start an interview; each interview can still choose its own. Shorter pauses train you to keep talking.">
           <PauseControl value={interviewPause} options={INTERVIEW_PAUSE.options}
             onChange={(n) => setPref(INTERVIEW_PAUSE, n)} />
+        </Setting>
+      </Section>
+
+      <Section icon={<IconCode size={18} />} title="Code editor">
+        <Setting label="Code suggestions"
+          description="Autocomplete for keywords, built-ins, names in your code and common snippets while you type Java, Python or SQL. Many real interviews turn it off.">
+          <Switch checked={codeSuggestions} label={codeSuggestions ? 'On' : 'Off'}
+            onChange={(e) => setFlag(CODE_SUGGESTIONS, e.currentTarget.checked)} />
         </Setting>
       </Section>
     </Stack>

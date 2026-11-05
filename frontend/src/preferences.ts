@@ -17,7 +17,23 @@ export const INTERVIEW_PAUSE: Pref<number> = {
   key: 'pref-interview-pause', options: [3, 5, 10, 15, 20, 30], fallback: 10,
 };
 
+/** An on/off preference. */
+interface Flag {
+  key: string;
+  fallback: boolean;
+}
+
+/** Autocomplete suggestions in the interview room's code editor (off feels more like a real interview). */
+export const CODE_SUGGESTIONS: Flag = { key: 'pref-code-suggestions', fallback: true };
+
 const listeners = new Set<() => void>();
+
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+};
 
 function read<T extends number>(pref: Pref<T>): T {
   const raw = Number(localStorage.getItem(pref.key));
@@ -25,16 +41,24 @@ function read<T extends number>(pref: Pref<T>): T {
 }
 
 export function usePref<T extends number>(pref: Pref<T>): T {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => read(pref),
-  );
+  return useSyncExternalStore(subscribe, () => read(pref));
 }
 
 export function setPref<T extends number>(pref: Pref<T>, value: T) {
   localStorage.setItem(pref.key, String(value));
+  listeners.forEach((l) => l());
+}
+
+function readFlag(flag: Flag): boolean {
+  const raw = localStorage.getItem(flag.key);
+  return raw === 'true' ? true : raw === 'false' ? false : flag.fallback;
+}
+
+export function useFlag(flag: Flag): boolean {
+  return useSyncExternalStore(subscribe, () => readFlag(flag));
+}
+
+export function setFlag(flag: Flag, value: boolean) {
+  localStorage.setItem(flag.key, String(value));
   listeners.forEach((l) => l());
 }

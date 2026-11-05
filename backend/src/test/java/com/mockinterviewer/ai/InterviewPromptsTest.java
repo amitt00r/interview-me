@@ -6,6 +6,8 @@ import com.mockinterviewer.ai.InterviewAi.PlanSlot;
 import com.mockinterviewer.company.Company;
 import com.mockinterviewer.interview.Interview;
 import com.mockinterviewer.interview.InterviewMode;
+import com.mockinterviewer.interview.CodeLanguage;
+import com.mockinterviewer.interview.TurnCode;
 import com.mockinterviewer.interview.TurnWhiteboard;
 import com.mockinterviewer.interviewer.Interviewer;
 import java.util.List;
@@ -89,6 +91,25 @@ class InterviewPromptsTest {
                 .contains("its latest version is shown further on")
                 .contains("<whiteboard_outline>\nBoxes: API, Cache\nArrows: API -> Cache\n</whiteboard_outline>")
                 .doesNotContain("Boxes: API\n");
+    }
+
+    @Test
+    void transcriptShowsOnlyTheLatestCodeOfEachQuestion() {
+        Interview interview = interview();
+        var intro = interview.plan(priya, "Introduction", "Tell me about yourself.");
+        var coding = interview.plan(priya, "Coding", "Write a function that reverses a list.", false,
+                CodeLanguage.JAVA);
+        interview.ask(intro).recordAnswer("Hi.", 5, null);
+        interview.ask(coding).recordAnswer("Here.", 60, null, new TurnCode(CodeLanguage.JAVA, "// version one"));
+        var followUp = interview.askFollowUp(priya, "Do it in place?", false, CodeLanguage.JAVA);
+        followUp.recordAnswer("Swapped ends.", 30, null, new TurnCode(CodeLanguage.JAVA, "// version two"));
+
+        String text = InterviewPrompts.transcript(interview.getTurns());
+
+        assertThat(text).contains("(The interviewer asked the candidate to write Java in the code editor.)")
+                .contains("<candidate_code language=\"Java\">\n// version two\n</candidate_code>")
+                .contains("its latest version is shown further on")
+                .doesNotContain("version one");
     }
 
     private Interview interview() {

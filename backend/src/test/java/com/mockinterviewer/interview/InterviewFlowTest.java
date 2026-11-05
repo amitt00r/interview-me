@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.mockinterviewer.ai.AiOutputs.FinalEvaluation;
+import com.mockinterviewer.ai.AiOutputs.CodeEditor;
 import com.mockinterviewer.ai.AiOutputs.NextAction;
 import com.mockinterviewer.ai.AiOutputs.PanelAssignment;
 import com.mockinterviewer.ai.AiOutputs.PlannedQuestion;
@@ -329,9 +330,13 @@ class InterviewFlowTest {
                 .andExpect(jsonPath("$.focusTopics.length()").value(2))
                 .andExpect(jsonPath("$.topicResults[0].topic").value("Data Structures & Algorithms"))
                 .andExpect(jsonPath("$.topicResults[0].answered").value(1))
-                // The follow-up was skipped: (8 + 0) / 2.
-                .andExpect(jsonPath("$.topicResults[0].averageScore").value(4.0))
-                .andExpect(jsonPath("$.topicResults[1].averageScore").doesNotExist());
+                // The main answer scored 8, then the follow-up was skipped (0).
+                .andExpect(jsonPath("$.topicResults[0].minScore").value(0))
+                .andExpect(jsonPath("$.topicResults[0].maxScore").value(8))
+                .andExpect(jsonPath("$.topicResults[0].lastScore").value(0))
+                .andExpect(jsonPath("$.topicResults[1].minScore").doesNotExist())
+                .andExpect(jsonPath("$.topicResults[1].maxScore").doesNotExist())
+                .andExpect(jsonPath("$.topicResults[1].lastScore").doesNotExist());
 
         // Reattempts practise the same round.
         service.end(started.getId());
@@ -461,6 +466,66 @@ class InterviewFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.turns[1].answer").value(InterviewService.WHITEBOARD_ONLY_ANSWER))
                 .andExpect(jsonPath("$.turns[1].whiteboardUrl").exists());
+    }
+
+    @Test
+    void codeQuestionsAreFlaggedInThePlanAndCopiedByReattempts() throws Exception {
+        when(ai.planInterview(any(), any())).thenReturn(List.of(
+                new PlannedQuestion("Hello", PLAN.get(0), false, CodeEditor.PYTHON), // never on the introduction
+                new PlannedQuestion("Caching", PLAN.get(1), false, CodeEditor.SQL),
+                new PlannedQuestion("Leadership", PLAN.get(2), true, CodeEditor.JAVA))); // the whiteboard wins
+        Interview started = start(InterviewMode.ONE_ON_ONE);
+        assertThat(started.getPlan()).extracting(InterviewQuestion::getCodeLanguage)
+                .containsExactly(null, CodeLanguage.SQL, null);
+
+        decide(NextAction.NEXT_QUESTION, 6, "");
+        Interview i = service.answer(started.getId(), "Hi, I'm Alex.", 30);
+        assertThat(i.getTurns().getLast().getCodeRequested()).isEqualTo(CodeLanguage.SQL);
+        mvc.perform(get("/api/interviews/" + i.getId()))
+                .andExpect(jsonPath("$.turns[0].codeRequested").doesNotExist())
+                .andExpect(jsonPath("$.turns[1].codeRequested").value("SQL"))
+                .andExpect(jsonPath("$.questions[1].codeLanguage").value("SQL"));
+
+        service.end(i.getId());
+        Interview again = service.reattempt(i.getId());
+        assertThat(again.getPlan()).extracting(InterviewQuestion::getCodeLanguage)
+                .containsExactly(null, CodeLanguage.SQL, null);
+    }
+
+    @Test
+    void answersCarryCodeAndCodeAloneIsAnAnswer() throws Exception {
+        Long id = start(InterviewMode.ONE_ON_ONE).getId();
+        when(ai.nextTurn(any(), any(), anyBoolean(), anyBoolean())).thenReturn(new TurnDecision(6, "ok",
+                NextAction.FOLLOW_UP, "Can you make it O(n)?", false, CodeEditor.PYTHON));
+
+        mvc.perform(post("/api/interviews/" + id + "/answers").contentType("application/json")
+                        .content("{\"answer\":\"Here is my solution.\",\"code\":{\"language\":\"PYTHON\","
+                                + "\"source\":\"def f(xs):\\n    return sorted(xs)\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.turns[0].code.language").value("PYTHON"))
+                .andExpect(jsonPath("$.turns[0].code.source").value("def f(xs):\n    return sorted(xs)"))
+                .andExpect(jsonPath("$.questions[0].code.language").value("PYTHON"))
+                .andExpect(jsonPath("$.turns[1].codeRequested").value("PYTHON"));
+
+        // The code goes to the AI with the answer.
+        ArgumentCaptor<Interview> seen = ArgumentCaptor.forClass(Interview.class);
+        verify(ai).nextTurn(seen.capture(), any(), anyBoolean(), anyBoolean());
+        assertThat(seen.getValue().getTurns().getFirst().getCode().getSource()).contains("sorted(xs)");
+
+        // Too long, or no language: rejected. Only code: accepted.
+        decide(NextAction.NEXT_QUESTION, 5, "");
+        String tooLong = "x".repeat(TurnCode.MAX_SOURCE_CHARS + 1);
+        mvc.perform(post("/api/interviews/" + id + "/answers").contentType("application/json")
+                        .content("{\"answer\":\"\",\"code\":{\"language\":\"JAVA\",\"source\":\"" + tooLong + "\"}}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/interviews/" + id + "/answers").contentType("application/json")
+                        .content("{\"answer\":\"\",\"code\":{\"source\":\"select 1\"}}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/interviews/" + id + "/answers").contentType("application/json")
+                        .content("{\"answer\":\"\",\"code\":{\"language\":\"SQL\",\"source\":\"select 1\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.turns[1].answer").value(InterviewService.CODE_ONLY_ANSWER))
+                .andExpect(jsonPath("$.turns[1].code.language").value("SQL"));
     }
 
     @Test
