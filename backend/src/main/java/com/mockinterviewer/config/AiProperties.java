@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * Settings for the AI-backed interview engine, bound from {@code app.ai.*}.
  *
  * @param provider      which provider runs interviews and Nikolai ({@code anthropic} or {@code openai})
- * @param maxQuestions  main (non follow-up) questions per interview
+ * @param maxQuestions  default main (non follow-up) questions per standard interview; the start form can choose 1-10
  * @param maxFollowUps  follow-ups allowed on a single main question
  * @param panelSize     interviewers assigned to a panel interview
  * @param anthropic     {@code app.ai.anthropic.*}, used when {@code provider} is {@code anthropic}

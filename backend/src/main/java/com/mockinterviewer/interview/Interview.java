@@ -37,6 +37,17 @@ public class Interview {
     public static final int DEFAULT_ANSWER_PAUSE_SECONDS = 10;
     public static final int MIN_ANSWER_PAUSE_SECONDS = 3;
     public static final int MAX_ANSWER_PAUSE_SECONDS = 60;
+    /** Main questions (introduction excluded) a standard round may be set up with. */
+    public static final int MIN_QUESTIONS = 1;
+    public static final int MAX_QUESTIONS = 10;
+    /** Problems in a coding (DSA) round: 2 by default, as in most real ones. */
+    public static final int DEFAULT_CODING_PROBLEMS = 2;
+    public static final int MAX_CODING_PROBLEMS = 2;
+    /**
+     * A coding problem gets as many follow-ups as the AI judges it needs (clarifications, hints, edge cases,
+     * complexity, a faster version); this only stops a runaway discussion.
+     */
+    public static final int CODING_FOLLOW_UP_LIMIT = 12;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -114,6 +125,16 @@ public class Interview {
      */
     private Integer answerPauseSeconds;
 
+    /** Null on rows that predate round types (treated as {@link RoundType#STANDARD}). */
+    @Enumerated(EnumType.STRING)
+    private RoundType roundType;
+
+    /**
+     * Whether slot 1 is the candidate's introduction. Null on rows that predate the option (they all had one);
+     * the plan itself tells too, but prompts need it before the plan is written.
+     */
+    private Boolean introduction;
+
     /** 1 for an original, 2+ for reattempts. Null on rows created before reattempts existed (treated as 1). */
     private Integer attempt;
 
@@ -179,6 +200,8 @@ public class Interview {
         copy.retakeOf = original;
         copy.attempt = attempt;
         copy.answerPauseSeconds = original.getAnswerPauseSeconds();
+        copy.roundType = original.getRoundType();
+        copy.introduction = original.hasIntroduction();
         original.getPlan().forEach(q -> copy.plan(q.getAskedBy(), q.getTopic(), q.getText(),
                 q.isWhiteboard(), q.getCodeLanguage()));
         return copy;
@@ -189,6 +212,21 @@ public class Interview {
         this.roundName = name;
         this.roundDescription = description;
         this.focusTopics = new ArrayList<>(topics == null ? List.of() : topics);
+    }
+
+    /**
+     * Sets the round's type, how many main questions it has and whether it opens with the candidate's
+     * introduction; before the plan is written (the prompts that write it read these).
+     */
+    public void defineFormat(RoundType roundType, int mainQuestions, boolean introduction) {
+        this.roundType = roundType;
+        this.introduction = introduction;
+        this.plannedQuestions = mainQuestions + (introduction ? 1 : 0);
+    }
+
+    /** Main questions after the introduction (the whole plan when there is none). */
+    public int mainQuestions() {
+        return Math.max(0, getPlannedQuestions() - (hasIntroduction() ? 1 : 0));
     }
 
     public boolean hasFocusTopics() {
@@ -343,6 +381,16 @@ public class Interview {
     }
     public void setAnswerPauseSeconds(Integer seconds) { this.answerPauseSeconds = seconds; }
     public List<String> getFocusTopics() { return focusTopics; }
+    public RoundType getRoundType() { return roundType == null ? RoundType.STANDARD : roundType; }
+    public boolean isCodingRound() { return getRoundType() == RoundType.CODING; }
+    public boolean hasIntroduction() { return introduction == null || introduction; }
+    /**
+     * Follow-ups allowed per main question: the configured maximum, except in a coding round, where the AI decides
+     * and only {@link #CODING_FOLLOW_UP_LIMIT} applies.
+     */
+    public int maxFollowUps(int configured) {
+        return isCodingRound() ? Math.max(configured, CODING_FOLLOW_UP_LIMIT) : configured;
+    }
     public InterviewMode getMode() { return mode; }
     public InterviewStatus getStatus() { return status; }
     public List<Interviewer> getInterviewers() { return interviewers; }

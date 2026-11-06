@@ -1,5 +1,7 @@
 // Mirrors the backend DTOs in com.mockinterviewer.*.*Dtos.
 
+export type RoundType = 'STANDARD' | 'CODING';
+
 export type InterviewMode = 'ONE_ON_ONE' | 'PANEL';
 export type InterviewStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
 
@@ -105,7 +107,7 @@ interface InterviewBase {
   attemptedQuestions: number;
   /** Main questions skipped. */
   skippedQuestions: number;
-  /** Main questions the interview was set up to ask, introduction included. */
+  /** Main questions the interview was set up to ask, introduction included (when it has one). */
   plannedQuestions: number;
   /** Ended (completed or abandoned) with questions to replay, or itself a reattempt. */
   reattemptable: boolean;
@@ -113,6 +115,10 @@ interface InterviewBase {
   roundName: string | null;
   /** Topics the round is restricted to, in priority order; empty when Claude chooses the areas. */
   focusTopics: string[];
+  /** STANDARD mixes question types; CODING is a DSA round where every main question is solved in the code editor. */
+  roundType: RoundType;
+  /** Whether the interview opens with the candidate introducing themselves. */
+  introduction: boolean;
 }
 
 export interface InterviewSummary extends InterviewBase {

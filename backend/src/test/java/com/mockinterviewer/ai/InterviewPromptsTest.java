@@ -54,6 +54,35 @@ class InterviewPromptsTest {
     }
 
     @Test
+    void planWithoutIntroductionMakesEverySlotAMainQuestion() {
+        String task = InterviewPrompts.planTask(List.of(new PlanSlot(priya, null), new PlanSlot(priya, null)),
+                InterviewMode.ONE_ON_ONE, null, false);
+
+        assertThat(task).contains("There is no introduction").contains("Every slot is one main question")
+                .doesNotContain("the candidate's introduction").doesNotContain("always for slot 1");
+        assertThat(InterviewPrompts.panelTask(List.of(priya), InterviewMode.ONE_ON_ONE, 1, 2, false, List.of()))
+                .contains("1. main question").contains("2. main question").doesNotContain("introduction\n");
+    }
+
+    @Test
+    void codingRoundPlansDsaProblemsInTheCodeEditor() {
+        String task = InterviewPrompts.planTask(
+                List.of(new PlanSlot(priya, null), new PlanSlot(priya, null), new PlanSlot(priya, null)),
+                InterviewMode.ONE_ON_ONE, "an elevator pitch", true);
+
+        assertThat(task).contains("data structures and algorithms problem").contains("never SQL or NONE")
+                .contains("Set whiteboard to false").doesNotContain("Cover a different area each time");
+
+        Interview interview = interview();
+        interview.defineFormat(com.mockinterviewer.interview.RoundType.CODING, 2, false);
+        assertThat(InterviewPrompts.setup(interview, interview.mainQuestions(), 3))
+                .contains("coding round (data structures and algorithms), no introduction: 2 coding problems, with "
+                        + "as many follow-up questions per problem as the discussion needs.");
+        assertThat(InterviewPrompts.turnTask(priya, true, true, true)).contains("no fixed number of follow-ups")
+                .contains("time and space complexity").contains("Move on from a problem only once it is done");
+    }
+
+    @Test
     void setupWrapsTheRoundInTagsAndOnlyRestrictsWhenThereAreTopics() {
         Interview interview = interview();
         interview.defineRound("Round 2", "Trade-offs only.", List.of("Apache Kafka", "Redis"));

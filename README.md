@@ -38,7 +38,9 @@ what. The lead asks your introduction, and each topic goes to whoever knows it b
 
 ### Rounds and focus topics
 
-Upload your resume, pick the company and format, name the round you're practising (say "Onsite: system design"),
+Upload your resume, pick the company and format, choose a standard round or a coding (DSA) round (2 algorithm
+problems by default, solved in the code editor), how many questions and whether to start with an introduction, name
+the round you're practising (say "Onsite: system design"),
 describe how it runs, and optionally restrict it to focus topics (one per main question at most, up to 8) from a
 built-in catalog or your own. You get a per-topic breakdown at the end. Every main question is written before you
 start, so a reattempt can ask exactly the same ones; after each answer the interviewer scores it and either probes
@@ -188,8 +190,8 @@ cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=local
 | `app.ai.<provider>.model` | `claude-opus-5-5` / `gpt-5.1` | Model id (`ANTHROPIC_MODEL` / `OPENAI_MODEL`) |
 | `app.ai.<provider>.turn-effort` | `low` | Effort for choosing the panel, scoring each answer and Nikolai (latency-sensitive). Leave blank for models without reasoning effort |
 | `app.ai.<provider>.final-effort` | `medium` | Effort for planning the questions, the final evaluation and study guides |
-| `app.ai.max-questions` | `5` | Main questions per interview, after the introduction |
-| `app.ai.max-follow-ups` | `2` | Follow-ups allowed per main question |
+| `app.ai.max-questions` | `5` | Default main questions (after the introduction) for a standard interview started without a count, e.g. by Nikolai or MCP; the start dialog lets you choose 1-10 |
+| `app.ai.max-follow-ups` | `2` | Follow-ups allowed per main question (coding rounds ignore it: the AI asks as many as each problem needs, up to a safety limit of 12) |
 | `app.ai.panel-size` | `3` | Interviewers on a panel (capped by the company's interviewer count, minimum 2) |
 
 The prompts are written for Claude; other models work but may phrase and score differently.

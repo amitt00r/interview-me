@@ -174,7 +174,8 @@ public final class InterviewDtos {
             InterviewStatus status, Integer overallScore, List<InterviewerRef> interviewers, Instant startedAt,
             Instant completedAt, Long retakeOfId, int attempt, String companyLogoUrl, int attemptedQuestions,
             int skippedQuestions, int plannedQuestions, int answeringSeconds, Long durationSeconds,
-            boolean reattemptable, String roundName, List<String> focusTopics) {
+            boolean reattemptable, String roundName, List<String> focusTopics, RoundType roundType,
+            boolean introduction) {
 
         static InterviewSummary from(Interview i) {
             return new InterviewSummary(i.getId(), i.getCandidateName(), i.getTargetRole(), i.getCompany().getId(),
@@ -182,7 +183,8 @@ public final class InterviewDtos {
                     i.getInterviewers().stream().map(InterviewerRef::from).toList(), i.getStartedAt(),
                     i.getCompletedAt(), originalIdOf(i), i.getAttempt(), i.getCompany().getLogoUrl(),
                     i.attemptedQuestions(), i.skippedQuestions(), i.getPlannedQuestions(), i.answeringSeconds(),
-                    i.durationSeconds(), i.canBeReattempted(), i.getRoundName(), List.copyOf(i.getFocusTopics()));
+                    i.durationSeconds(), i.canBeReattempted(), i.getRoundName(), List.copyOf(i.getFocusTopics()),
+                    i.getRoundType(), i.hasIntroduction());
         }
     }
 
@@ -204,7 +206,7 @@ public final class InterviewDtos {
             int answeringSeconds, Long durationSeconds, int attemptedQuestions, int skippedQuestions,
             int plannedQuestions, boolean reattemptable, List<QuestionResult> questions, String roundName,
             String roundDescription, List<String> focusTopics, List<TopicResult> topicResults,
-            int answerPauseSeconds) {
+            int answerPauseSeconds, RoundType roundType, boolean introduction) {
 
         static InterviewDetail from(Interview i) {
             return new InterviewDetail(i.getId(), i.getCandidateName(), i.getTargetRole(), i.getCompany().getId(),
@@ -216,7 +218,8 @@ public final class InterviewDtos {
                     i.getStartedAt(), i.getCompletedAt(), originalIdOf(i), i.getAttempt(), i.answeringSeconds(),
                     i.durationSeconds(), i.attemptedQuestions(), i.skippedQuestions(), i.getPlannedQuestions(),
                     i.canBeReattempted(), QuestionResult.from(i), i.getRoundName(), i.getRoundDescription(),
-                    List.copyOf(i.getFocusTopics()), TopicResult.from(i), i.getAnswerPauseSeconds());
+                    List.copyOf(i.getFocusTopics()), TopicResult.from(i), i.getAnswerPauseSeconds(), i.getRoundType(),
+                    i.hasIntroduction());
         }
 
         private static List<String> lines(String s) {

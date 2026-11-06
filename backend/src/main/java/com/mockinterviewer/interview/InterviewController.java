@@ -7,6 +7,7 @@ import com.mockinterviewer.interview.InterviewDtos.InterviewSummary;
 import com.mockinterviewer.interview.InterviewDtos.SkipRequest;
 import com.mockinterviewer.interview.InterviewDtos.StudyGuideResponse;
 import com.mockinterviewer.interview.InterviewService.ResumeUpload;
+import com.mockinterviewer.interview.InterviewService.FormatRequest;
 import com.mockinterviewer.interview.InterviewService.RoundRequest;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -65,6 +66,9 @@ public class InterviewController {
             @RequestParam(required = false) String roundName,
             @RequestParam(required = false) String roundDescription,
             @RequestParam(required = false) Integer answerPauseSeconds,
+            @RequestParam(required = false) RoundType roundType,
+            @RequestParam(required = false) Integer questionCount,
+            @RequestParam(required = false) Boolean includeIntroduction,
             @RequestPart(required = false) MultipartFile resume,
             WebRequest request) throws IOException {
         // Repeated "topics" parts, in priority order. Read raw: binding a List would split a lone value on commas.
@@ -73,8 +77,9 @@ public class InterviewController {
         ResumeUpload upload = resume == null ? null
                 : new ResumeUpload(resume.getOriginalFilename(), resume.getContentType(), resume.getBytes());
         RoundRequest round = new RoundRequest(roundName, roundDescription, topics);
+        FormatRequest format = new FormatRequest(roundType, questionCount, includeIntroduction);
         return InterviewDetail.from(service.start(candidateName, targetRole, jobDescription, companyId, mode, round,
-                upload, answerPauseSeconds));
+                format, upload, answerPauseSeconds));
     }
 
     @PostMapping("/{id}/answers")

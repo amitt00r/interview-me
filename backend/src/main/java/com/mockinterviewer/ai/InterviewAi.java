@@ -52,16 +52,18 @@ public class InterviewAi {
     public PanelAssignment assignPanel(Interview interview, List<Interviewer> roster, int panelSize,
             List<String> slotTopics) {
         return call(PanelAssignment.class, Effort.TURN, interview, InterviewPrompts.panelTask(roster,
-                interview.getMode(), panelSize, props.maxQuestions(), slotTopics));
+                interview.getMode(), panelSize, interview.mainQuestions(), interview.hasIntroduction(), slotTopics));
     }
 
     /**
      * Writes every main question up front, one per slot; {@code slots} says who asks each and on what topic
-     * (slot 1 is the introduction). Returns exactly {@code slots.size()} questions or throws.
+     * (slot 1 is the introduction, when the interview has one). Returns exactly {@code slots.size()} questions or
+     * throws.
      */
     public List<PlannedQuestion> planInterview(Interview interview, List<PlanSlot> slots) {
         InterviewPlan plan = call(InterviewPlan.class, Effort.FINAL, interview,
-                InterviewPrompts.planTask(slots, interview.getMode(), randomIntroductionAngle()));
+                InterviewPrompts.planTask(slots, interview.getMode(),
+                        interview.hasIntroduction() ? randomIntroductionAngle() : null, interview.isCodingRound()));
         List<PlannedQuestion> questions = plan.questions() == null ? List.of() : plan.questions();
         if (questions.size() < slots.size()
                 || questions.stream().limit(slots.size()).anyMatch(q -> q.question() == null || q.question().isBlank())) {
@@ -74,7 +76,7 @@ public class InterviewAi {
     public TurnDecision nextTurn(Interview interview, Interviewer followUpSpeaker, boolean followUpAllowed,
             boolean morePlanned) {
         return call(TurnDecision.class, Effort.TURN, interview,
-                InterviewPrompts.turnTask(followUpSpeaker, followUpAllowed, morePlanned));
+                InterviewPrompts.turnTask(followUpSpeaker, followUpAllowed, morePlanned, interview.isCodingRound()));
     }
 
     public FinalEvaluation finalEvaluation(Interview interview) {
@@ -111,10 +113,11 @@ public class InterviewAi {
     private <T> T call(Class<T> type, Effort effort, Interview interview, String task) {
         List<Content> content = new ArrayList<>();
         content.add(new AiProvider.Document("Candidate resume", interview.getResumeData(), interview.isPdfResume()));
-        content.add(new AiProvider.Text(InterviewPrompts.setup(interview, props.maxQuestions(), props.maxFollowUps()),
-                true));
+        content.add(new AiProvider.Text(InterviewPrompts.setup(interview, interview.mainQuestions(),
+                interview.maxFollowUps(props.maxFollowUps())), true));
         // Transcript text with the candidate's whiteboard images in place, then the task.
-        List<InterviewPrompts.Part> parts = new ArrayList<>(InterviewPrompts.transcriptParts(interview.getTurns()));
+        List<InterviewPrompts.Part> parts = new ArrayList<>(InterviewPrompts.transcriptParts(interview.getTurns(),
+                interview.hasIntroduction()));
         parts.add(new InterviewPrompts.Text("\n\n" + task));
         StringBuilder text = new StringBuilder();
         for (InterviewPrompts.Part part : parts) {

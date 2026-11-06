@@ -27,7 +27,7 @@ public class InterviewQuestion {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     private Interview interview;
 
-    /** 1-based; position 1 is the candidate's introduction. */
+    /** 1-based; position 1 is the candidate's introduction unless the interview skips it ({@code Interview.hasIntroduction}). */
     private int position;
 
     @ManyToOne(optional = false)

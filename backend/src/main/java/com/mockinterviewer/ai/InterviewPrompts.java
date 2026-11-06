@@ -80,14 +80,26 @@ final class InterviewPrompts {
                         : "not specified (infer from resume)"))
                 .append('\n');
         sb.append("Format: ").append(interview.getMode() == InterviewMode.PANEL ? "panel interview" : "one-on-one interview");
+        boolean coding = interview.isCodingRound();
+        if (coding) {
+            sb.append(", coding round (data structures and algorithms)");
+        }
         if (interview.isReattempt()) {
             sb.append(". This is reattempt ").append(interview.getAttempt())
                     .append(": the candidate is answering exactly the same questions as an earlier interview, ")
-                    .append("in the same order.\n\n");
+                    .append("in the same order.\n");
         } else {
-            sb.append(", an introduction question then ").append(maxQuestions).append(" main questions, up to ")
-                    .append(maxFollowUps).append(" follow-up questions per main question.\n\n");
+            String unit = coding ? "coding problem" : "main question";
+            sb.append(interview.hasIntroduction() ? ", an introduction question then " : ", no introduction: ")
+                    .append(maxQuestions).append(' ').append(unit).append(maxQuestions == 1 ? "" : "s")
+                    .append(coding ? ", with as many follow-up questions per problem as the discussion needs"
+                            : ", up to " + maxFollowUps + " follow-up questions per main question")
+                    .append(".\n");
         }
+        if (coding) {
+            sb.append(CODING_ROUND);
+        }
+        sb.append('\n');
 
         sb.append("Company: ").append(company.getName());
         if (notBlank(company.getIndustry())) {
@@ -123,6 +135,14 @@ final class InterviewPrompts {
         return sb.toString();
     }
 
+    private static final String CODING_ROUND = """
+            In this round every main question is a data structures and algorithms problem the candidate solves \
+            in the code editor, as in a real coding interview: they may clarify the problem, talk through their \
+            approach, then write the code. Judge the approach and its time and space complexity, correctness on \
+            normal and edge cases, and the quality of the code; communication matters, but a correct, efficient \
+            solution matters most.
+            """;
+
     private static void appendRound(StringBuilder sb, Interview interview) {
         boolean topics = interview.hasFocusTopics();
         if (!notBlank(interview.getRoundName()) && !notBlank(interview.getRoundDescription()) && !topics) {
@@ -140,8 +160,8 @@ final class InterviewPrompts {
         }
         sb.append("</round>\n");
         sb.append(topics
-                ? "This round is restricted to its focus topics: every main question after the introduction is "
-                        + "about one of them, and follow-ups stay on the topic of the question being discussed.\n"
+                ? "This round is restricted to its focus topics: every main question"
+                        + (interview.hasIntroduction() ? " after the introduction" : "") + " is about one of them, and follow-ups stay on the topic of the question being discussed.\n"
                 : "Shape the main questions around this round.\n");
     }
 
@@ -157,8 +177,13 @@ final class InterviewPrompts {
 
     /** The transcript as plain text, whiteboard images left out (their outlines stay). */
     static String transcript(List<InterviewTurn> turns) {
+        return transcript(turns, true);
+    }
+
+    /** As above; {@code introduction} says whether question 1 is the candidate's introduction. */
+    static String transcript(List<InterviewTurn> turns, boolean introduction) {
         StringBuilder sb = new StringBuilder();
-        for (Part part : transcriptParts(turns)) {
+        for (Part part : transcriptParts(turns, introduction)) {
             if (part instanceof Text(String text)) {
                 sb.append(text);
             }
@@ -171,6 +196,11 @@ final class InterviewPrompts {
      * follow-ups, so only the latest image per planned question is included; earlier answers point to it.
      */
     static List<Part> transcriptParts(List<InterviewTurn> turns) {
+        return transcriptParts(turns, true);
+    }
+
+    /** As above; {@code introduction} says whether question 1 is the candidate's introduction. */
+    static List<Part> transcriptParts(List<InterviewTurn> turns, boolean introduction) {
         List<Part> parts = new ArrayList<>();
         if (turns.isEmpty()) {
             parts.add(new Text("<transcript>\n(no questions asked yet)\n</transcript>"));
@@ -200,7 +230,7 @@ final class InterviewPrompts {
             } else {
                 main++;
                 String topic = t.getPlannedQuestion() == null ? null : t.getPlannedQuestion().getTopic();
-                label = main == 1 ? "Question 1 (introduction)"
+                label = main == 1 && introduction ? "Question 1 (introduction)"
                         : "Question " + main + (notBlank(topic) ? " (topic: " + topic + ")" : "");
             }
             sb.append(label).append(", asked by ").append(t.getAskedBy().getName()).append(":\n")
@@ -279,6 +309,12 @@ final class InterviewPrompts {
      */
     static String panelTask(List<Interviewer> roster, InterviewMode mode, int panelSize, int mainQuestions,
             List<String> slotTopics) {
+        return panelTask(roster, mode, panelSize, mainQuestions, true, slotTopics);
+    }
+
+    /** As above; {@code introduction} says whether slot 1 is the candidate's introduction. */
+    static String panelTask(List<Interviewer> roster, InterviewMode mode, int panelSize, int mainQuestions,
+            boolean introduction, List<String> slotTopics) {
         StringBuilder sb = new StringBuilder();
         sb.append("Before the interview is planned, choose who interviews this candidate and who asks each ")
                 .append("question.\n\n")
@@ -296,9 +332,13 @@ final class InterviewPrompts {
             }
         }
         sb.append("\nSlots (the questions themselves are written afterwards):\n");
-        sb.append("1. the candidate's introduction\n");
+        int first = 1;
+        if (introduction) {
+            sb.append("1. the candidate's introduction\n");
+            first = 2;
+        }
         for (int i = 0; i < mainQuestions; i++) {
-            sb.append(i + 2).append(". main question");
+            sb.append(i + first).append(". main question");
             if (!slotTopics.isEmpty()) {
                 sb.append(" - topic: ").append(slotTopics.get(i));
             }
@@ -311,8 +351,8 @@ final class InterviewPrompts {
                 the target role, the job description, the round and its focus topics, the candidate's resume and \
                 seniority, and what the company's interviews focus on, against each interviewer's title, \
                 expertise and background.
-                - Put the lead interviewer first; they ask the introduction. Usually that is the hiring manager or \
-                the most senior person relevant to the role.
+                - Put the lead interviewer first; they ask slot 1 and open the interview. Usually that is the \
+                hiring manager or the most senior person relevant to the role.
                 - Give each main question to the chosen interviewer best placed to ask it: a topic to whoever \
                 knows it best; without topics, whoever's expertise covers what this round should probe.""");
         if (mode == InterviewMode.PANEL) {
@@ -324,6 +364,17 @@ final class InterviewPrompts {
     }
 
     static String planTask(List<InterviewAi.PlanSlot> slots, InterviewMode mode, String introductionAngle) {
+        return planTask(slots, mode, introductionAngle, false);
+    }
+
+    /**
+     * @param introductionAngle how slot 1 asks the candidate to introduce themselves; null when the interview has
+     *                          no introduction (every slot is a main question)
+     * @param coding            a coding round: every main question is a data structures and algorithms problem
+     */
+    static String planTask(List<InterviewAi.PlanSlot> slots, InterviewMode mode, String introductionAngle,
+            boolean coding) {
+        boolean introduction = introductionAngle != null;
         boolean topics = slots.stream().anyMatch(slot -> slot.topic() != null);
         StringBuilder sb = new StringBuilder();
         sb.append("Plan this whole interview now: write every main question in advance, one per slot below, ")
@@ -332,20 +383,48 @@ final class InterviewPrompts {
         for (int i = 0; i < slots.size(); i++) {
             InterviewAi.PlanSlot slot = slots.get(i);
             sb.append(i + 1).append(". ").append(describe(slot.askedBy()));
-            if (i == 0) {
+            if (i == 0 && introduction) {
                 sb.append(" - the candidate's introduction");
             } else if (slot.topic() != null) {
                 sb.append(" - topic: ").append(slot.topic());
             }
             sb.append('\n');
         }
-        sb.append("\nSlot 1: ").append(mode == InterviewMode.PANEL
-                        ? "briefly greet the candidate and introduce the panel by first name"
-                        : "briefly greet the candidate and introduce yourself")
-                .append(" (one or two sentences), then ask the candidate to introduce themselves, framed as ")
-                .append(introductionAngle).append(". No technical question in this slot.\n");
-        sb.append("Every later slot is one main question:\n");
-        if (topics) {
+        String greeting = mode == InterviewMode.PANEL
+                ? "briefly greet the candidate and introduce the panel by first name"
+                : "briefly greet the candidate and introduce yourself";
+        if (introduction) {
+            sb.append("\nSlot 1: ").append(greeting)
+                    .append(" (one or two sentences), then ask the candidate to introduce themselves, framed as ")
+                    .append(introductionAngle).append(". No technical question in this slot.\n");
+            sb.append("Every later slot is one main question:\n");
+        } else {
+            sb.append("\nThere is no introduction: do not ask the candidate to introduce themselves. Slot 1 opens ")
+                    .append("the interview: ").append(greeting)
+                    .append(" (one or two sentences), then go straight into its question.\n");
+            sb.append("Every slot is one main question:\n");
+        }
+        String exceptIntro = introduction ? " (slot 1 excepted)" : "";
+        if (coding) {
+            sb.append("""
+                    - This is a coding round: each question is one data structures and algorithms problem of the \
+                    kind asked in real coding interviews at this company and level (arrays and strings, hashing, \
+                    two pointers, sliding window, stacks and queues, linked lists, trees, graphs, heaps, binary \
+                    search, recursion and backtracking, dynamic programming, greedy, intervals). Use a different \
+                    technique for each problem""").append(topics ? ", within its slot's topic" : "").append("""
+                    , and make the later problems harder: the first of medium difficulty, later ones medium to \
+                    hard for the candidate's seniority.
+                    - State each problem completely, the way an interviewer reads it out: what to implement (a \
+                    function, its inputs and its output), one or two small examples with the expected output, and \
+                    the constraints (input sizes, value ranges) that set the expected complexity. Keep it short \
+                    enough to say aloud, and never hint at the technique or the solution.
+                    - Have the interviewer ask the candidate to talk through their approach and then write the \
+                    solution in the code editor, and set code to JAVA or PYTHON, whichever the job description asks \
+                    for, else whichever the resume shows more of; never SQL or NONE""").append(exceptIntro)
+                    .append("""
+                    . Set whiteboard to false.
+                    """);
+        } else if (topics) {
             sb.append("""
                     - Each question must be squarely about its slot's topic and test real depth in it: concepts, \
                     trade-offs, how it behaves in production, or a problem to solve. Use the resume, role, company \
@@ -364,20 +443,34 @@ final class InterviewPrompts {
                 - Each question must stand on its own: it is asked exactly as written, whatever the candidate \
                 said before, so never refer to earlier answers. Follow-ups are handled separately, live.
                 - When a panelist speaks for the first time after slot 1, a brief natural hand-off is fine.
+                """);
+        if (coding) {
+            return sb.append("Give each question a short topic label naming the problem's main technique.").toString();
+        }
+        String alsoSlot1 = introduction ? ", and always for slot 1" : "";
+        sb.append("""
                 - When a question is best answered with a diagram (designing a system, its components and data \
                 flow, a data model), have the interviewer ask the candidate to sketch it on the whiteboard and \
-                set whiteboard to true. Leave it false for everything else, and always for slot 1.
+                set whiteboard to true. Leave it false for everything else""").append(alsoSlot1).append("""
+                .
                 - When a question is best answered with code (implement a function, algorithm or class, write a \
                 SQL query, fix or review a snippet), have the interviewer ask the candidate to write it in the code \
                 editor and set code to its language: SQL for queries and data work; otherwise JAVA or PYTHON, \
                 whichever the job description asks for, else whichever the resume shows more of. The question must \
                 give everything needed to write the code (for SQL, the tables and columns). Set code to NONE for \
-                everything else, always for slot 1, and whenever whiteboard is true.
+                everything else""").append(alsoSlot1).append("""
+                , and whenever whiteboard is true.
                 Give each question a short topic label.""");
         return sb.toString();
     }
 
     static String turnTask(Interviewer followUpSpeaker, boolean followUpAllowed, boolean morePlanned) {
+        return turnTask(followUpSpeaker, followUpAllowed, morePlanned, false);
+    }
+
+    /** As above; {@code coding} is a coding round, whose follow-ups probe the solution. */
+    static String turnTask(Interviewer followUpSpeaker, boolean followUpAllowed, boolean morePlanned,
+            boolean coding) {
         StringBuilder sb = new StringBuilder();
         sb.append("The candidate has just answered the last question in the transcript.\n\n");
         sb.append("1. Score that latest answer and give brief feedback.\n");
@@ -390,6 +483,16 @@ final class InterviewPrompts {
                     .append("or to change their whiteboard drawing, or set code to JAVA, PYTHON or SQL when it asks ")
                     .append("them to write or change code in the code editor (at most one of the two; code stays in ")
                     .append("the language already used for this question, if any).\n");
+            if (coding) {
+                sb.append("  This is a coding round: there is no fixed number of follow-ups, so keep the ")
+                        .append("discussion going for as long as the candidate's response calls for, as a real ")
+                        .append("interviewer would. Read where they are and ask what moves it forward: answer a ")
+                        .append("clarifying question, nudge them with a hint if they are stuck, ask them to write ")
+                        .append("the code if they only described an approach, point to an edge case or input their ")
+                        .append("code gets wrong, ask for its time and space complexity if not given, or ask for a ")
+                        .append("faster or leaner version when a better one exists. Set code to the problem's ")
+                        .append("language when it asks them to write or change the code.\n");
+            }
         }
         if (morePlanned) {
             sb.append("- NEXT_QUESTION: move on to the next question in the interview plan, which is asked as ")
@@ -398,6 +501,13 @@ final class InterviewPrompts {
         } else {
             sb.append("- END: every planned question has been asked; close the interview. nextQuestion must be ")
                     .append("an empty string.\n");
+        }
+        if (coding && followUpAllowed) {
+            sb.append("Move on from a problem only once it is done: the candidate has written a correct solution, ")
+                    .append("handled the edge cases and explained its complexity, and there is no better approach ")
+                    .append("worth pushing for; or they are clearly stuck even after hints, or have said they ")
+                    .append("cannot go further. Do not move on just because a few follow-ups have been asked, and ")
+                    .append("do not ask follow-ups that only repeat what is already settled.\n");
         }
         return sb.toString();
     }
@@ -418,6 +528,11 @@ final class InterviewPrompts {
                         ? "\n\nThis round focused on: " + String.join("; ", interview.getFocusTopics())
                                 + ". Judge the candidate's command of each of these topics, and make the strengths "
                                 + "and areas to improve specific to them, naming the topic each one is about."
+                        : "")
+                + (interview.isCodingRound()
+                        ? "\n\nThis was a coding round: weigh problem solving, the correctness and complexity of each "
+                                + "solution and the quality of the code most, and make the strengths and areas to "
+                                + "improve concrete (techniques, edge cases, complexity analysis, code habits)."
                         : "");
     }
 

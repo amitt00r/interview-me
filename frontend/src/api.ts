@@ -5,6 +5,7 @@ import type {
   AttemptSummary,
   InterviewDetail,
   InterviewMode,
+  RoundType,
   InterviewStatus,
   InterviewSummary,
   Interviewer,
@@ -94,6 +95,10 @@ export const api = {
       roundName: string;
       roundDescription: string;
       answerPauseSeconds: number;
+      roundType: RoundType;
+      /** Main questions, the introduction not counted. */
+      questionCount: number;
+      includeIntroduction: boolean;
       topics: string[];
       resume: File;
     }) => {
@@ -106,6 +111,9 @@ export const api = {
       form.append('roundName', input.roundName);
       form.append('roundDescription', input.roundDescription);
       form.append('answerPauseSeconds', String(input.answerPauseSeconds));
+      form.append('roundType', input.roundType);
+      form.append('questionCount', String(input.questionCount));
+      form.append('includeIntroduction', String(input.includeIntroduction));
       // One part per topic, in priority order.
       input.topics.forEach((t) => form.append('topics', t));
       form.append('resume', input.resume);

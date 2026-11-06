@@ -1,15 +1,15 @@
-import { Alert, Anchor, Button, FileInput, Group, Modal, Paper, Select, SegmentedControl, SimpleGrid, Stack, Text, TextInput, Textarea, ThemeIcon, Title } from '@mantine/core';
+import { Alert, Anchor, Button, FileInput, Group, Modal, NumberInput, Paper, Select, SegmentedControl, SimpleGrid, Stack, Switch, Text, TextInput, Textarea, ThemeIcon, Title } from '@mantine/core';
 import { IconAdjustments, IconFileText, IconPlayerPlay, IconUser } from '@tabler/icons-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import TopicPicker from './TopicPicker';
-import type { InterviewMode } from '../types';
+import type { InterviewMode, RoundType, TopicCatalog } from '../types';
 import { INTERVIEW_PAUSE, usePref } from '../preferences';
 import { useAsync } from '../useAsync';
 
 type Field = 'candidateName' | 'targetRole' | 'jobDescription' | 'companyId' | 'mode' | 'answerPauseSeconds' | 'roundName'
-  | 'roundDescription' | 'topics' | 'resume';
+  | 'roundDescription' | 'topics' | 'resume' | 'questionCount';
 type Errors = Partial<Record<Field, string>>;
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
@@ -17,8 +17,22 @@ const MIN_JOB_DESCRIPTION = 50;
 const MAX_ROUND_NAME = 100;
 const MAX_ROUND_DESCRIPTION = 2000;
 
+/** Main questions (introduction not counted) per round type; mirrors Interview.MAX_QUESTIONS etc. on the backend. */
+const QUESTIONS: Record<RoundType, { default: number; max: number }> = {
+  STANDARD: { default: 5, max: 10 },
+  CODING: { default: 2, max: 2 },
+};
+
 /** Seconds of silence before a hands-free answer is submitted (the backend accepts 3-60). */
 const PAUSE_OPTIONS = INTERVIEW_PAUSE.options;
+
+/** The catalog category a coding round's topics come from (backend TopicCatalog.CATEGORIES). */
+const DSA_CATEGORY = 'Data Structures & Algorithms';
+
+/** Catalog topics outside the DSA category: dropped from the choice when switching to a coding round. */
+function nonDsaTopics(catalog: TopicCatalog | null): Set<string> {
+  return new Set(catalog?.categories.filter((c) => c.name !== DSA_CATEGORY).flatMap((c) => c.topics) ?? []);
+}
 
 /** Shown in turn while the server checks the details and Claude plans the interview. */
 const STAGES = ['Checking your details…', 'Planning your interview…', 'Writing your questions…',
@@ -40,6 +54,15 @@ export default function StartInterviewModal({ opened, onClose }: { opened: boole
   const [roundName, setRoundName] = useState('');
   const [roundDescription, setRoundDescription] = useState('');
   const [topics, setTopics] = useState<string[]>([]);
+  const [roundType, setRoundType] = useState<RoundType>('STANDARD');
+  const [questionCount, setQuestionCount] = useState<number | ''>(QUESTIONS.STANDARD.default);
+  const [introduction, setIntroduction] = useState(true);
+  const maxQuestions = QUESTIONS[roundType].max;
+  const maxTopics = Math.min(topicCatalog?.maxTopics ?? 8, questionCount || maxQuestions);
+  // A coding round only suggests DSA topics (typing your own still works).
+  const shownCatalog = useMemo(() => topicCatalog && roundType === 'CODING'
+    ? { ...topicCatalog, categories: topicCatalog.categories.filter((c) => c.name === DSA_CATEGORY) }
+    : topicCatalog, [topicCatalog, roundType]);
   const defaultPause = usePref(INTERVIEW_PAUSE);
   const [answerPause, setAnswerPause] = useState(String(defaultPause));
   // Each time the dialog opens, start from the current default (Settings → Preferences).
@@ -79,8 +102,13 @@ export default function StartInterviewModal({ opened, onClose }: { opened: boole
     if (roundDescription.trim().length > MAX_ROUND_DESCRIPTION) {
       found.roundDescription = `Round description must be ${MAX_ROUND_DESCRIPTION} characters or fewer.`;
     }
-    if (topicCatalog && topics.length > topicCatalog.maxTopics) {
-      found.topics = `Choose at most ${topicCatalog.maxTopics} topics.`;
+    if (questionCount === '' || !Number.isInteger(questionCount) || questionCount < 1 || questionCount > maxQuestions) {
+      found.questionCount = roundType === 'CODING'
+        ? `A coding round has 1 to ${maxQuestions} problems.`
+        : `Choose between 1 and ${maxQuestions} questions.`;
+    } else if (topics.length > maxTopics) {
+      found.topics = `Choose at most ${maxTopics} topics: each one needs at least one of the ${questionCount} `
+        + `${roundType === 'CODING' ? 'problems' : 'main questions'}.`;
     }
     if (!selected) found.companyId = 'Choose a company.';
     else if (selected.interviewerCount === 0) found.companyId = `${selected.name} has no interviewers yet.`;
@@ -98,12 +126,12 @@ export default function StartInterviewModal({ opened, onClose }: { opened: boole
     const found = check();
     setErrors(found);
     setError(null);
-    if (Object.keys(found).length > 0 || !resume || companyId === '') return;
+    if (Object.keys(found).length > 0 || !resume || companyId === '' || questionCount === '') return;
     setStarting(true);
     try {
       const interview = await api.interviews.start({
         candidateName, targetRole, jobDescription, companyId, mode, roundName, roundDescription, topics, resume,
-        answerPauseSeconds: Number(answerPause),
+        answerPauseSeconds: Number(answerPause), roundType, questionCount, includeIntroduction: introduction,
       });
       navigate(`/interviews/${interview.id}`);
     } catch (err) {
@@ -168,6 +196,9 @@ export default function StartInterviewModal({ opened, onClose }: { opened: boole
           <Paper withBorder p="lg" className="settings-panel">
             <Stack gap="md">
               <SectionTitle icon={<IconAdjustments size={16} />} title="Interview settings" />
+              <Switch mt="xs" label="Start with an introduction" checked={introduction}
+                description="You introduce yourself first; turn off to go straight into the questions"
+                onChange={(e) => setIntroduction(e.currentTarget.checked)} />
               <Stack gap={4}>
                 <Text size="sm" fw={500}>Format</Text>
                 <SegmentedControl value={mode} fullWidth
@@ -175,20 +206,54 @@ export default function StartInterviewModal({ opened, onClose }: { opened: boole
                   data={[{ value: 'ONE_ON_ONE', label: 'One-on-one' }, { value: 'PANEL', label: 'Panel' }]} />
                 {errors.mode && <Text size="xs" c="red">{errors.mode}</Text>}
                 <Text size="xs" c="dimmed">
-                  The AI picks the company's interviewers who best fit your resume, role and round, and who asks what: an introduction, then the main questions.
+                  The AI picks the company's interviewers who best fit your resume, role and round, and who asks each question.
                 </Text>
               </Stack>
               <TextInput label="Round name" value={roundName} maxLength={MAX_ROUND_NAME}
                 placeholder="Round 2 – Backend deep dive" error={errors.roundName}
                 onChange={(e) => { setRoundName(e.currentTarget.value); clear('roundName'); }} />
+              <Stack gap={4}>
+                <Group align="flex-end" gap="md" wrap="nowrap">
+                  <Stack gap={4} style={{ flex: 1 }}>
+                    <Text size="sm" fw={500}>Round type</Text>
+                    <SegmentedControl value={roundType} fullWidth
+                      onChange={(v) => {
+                        const type = v as RoundType;
+                        setRoundType(type);
+                        setQuestionCount(QUESTIONS[type].default);
+                        if (type === 'CODING') {
+                          const other = nonDsaTopics(topicCatalog);
+                          setTopics((t) => t.filter((topic) => !other.has(topic)));
+                        }
+                        clear('questionCount');
+                        clear('topics');
+                      }}
+                      data={[{ value: 'STANDARD', label: 'Standard' }, { value: 'CODING', label: 'Coding (DSA)' }]} />
+                  </Stack>
+                  <NumberInput w={130} label={roundType === 'CODING' ? 'Problems' : 'Questions'} min={1}
+                    max={maxQuestions} allowDecimal={false} allowNegative={false} clampBehavior="strict"
+                    value={questionCount}
+                    onChange={(v) => { setQuestionCount(typeof v === 'number' ? v : ''); clear('questionCount'); clear('topics'); }} />
+                </Group>
+                {errors.questionCount && <Text size="xs" c="red">{errors.questionCount}</Text>}
+                <Text size="xs" c="dimmed">
+                  {roundType === 'CODING'
+                    ? 'Every question is a data structures and algorithms problem you solve in the code editor, '
+                      + 'followed by questions on complexity, edge cases and faster versions.'
+                    : 'Questions of any kind, chosen from the round, your resume and the company; some may still ask '
+                      + 'for a code snippet, a query or a diagram.'}
+                  {` ${roundType === 'CODING' ? 'Problems' : 'Questions'}: 1–${maxQuestions}, not counting the introduction.`}
+                </Text>
+              </Stack>
               <Textarea label="Round description" autosize minRows={2} maxRows={6}
                 maxLength={MAX_ROUND_DESCRIPTION} value={roundDescription} error={errors.roundDescription}
                 placeholder="What this round covers and how it's run, e.g. focus on trade-offs and production experience, no puzzles"
                 onChange={(e) => { setRoundDescription(e.currentTarget.value); clear('roundDescription'); }} />
-              <TopicPicker catalog={topicCatalog} value={topics} error={errors.topics}
+              <TopicPicker catalog={shownCatalog} value={topics} error={errors.topics} max={maxTopics}
+                placeholder={roundType === 'CODING' ? 'e.g. Graphs, Dynamic Programming' : undefined}
                 onChange={(t) => { setTopics(t); clear('topics'); }}
                 description={topics.length > 0
-                  ? 'Every main question is about these topics, shared out in this order. Follow-ups stay on topic.'
+                  ? `Every ${roundType === 'CODING' ? 'problem' : 'main question'} is about these topics, shared out in this order. Follow-ups stay on topic.`
                   : 'Leave empty to let the round, your resume and the company guide the questions.'} />
               <Stack gap={4}>
                 <Text size="sm" fw={500}>Pause before your answer is sent</Text>

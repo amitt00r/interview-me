@@ -29,7 +29,7 @@ public class InterviewerAssigner {
     private final AiProperties props;
     private final Random random;
 
-    /** The panel (lead first, who asks the introduction) and who asks each slot, slot 1 first. */
+    /** The panel (lead first, who asks slot 1: the introduction, if any) and who asks each slot, slot 1 first. */
     public record Assignment(List<Interviewer> panel, List<Interviewer> askers) {
     }
 
@@ -54,6 +54,12 @@ public class InterviewerAssigner {
      * @param slotCount the introduction plus the main questions
      */
     public Assignment resolve(PanelAssignment choice, List<Interviewer> roster, InterviewMode mode, int slotCount) {
+        return resolve(choice, roster, mode, slotCount, true);
+    }
+
+    /** As above; {@code introduction} says whether slot 1 is the introduction rather than a main question. */
+    public Assignment resolve(PanelAssignment choice, List<Interviewer> roster, InterviewMode mode, int slotCount,
+            boolean introduction) {
         if (roster.isEmpty()) {
             throw new BadRequestException("This company has no interviewers yet. Add one on its company page.");
         }
@@ -88,9 +94,9 @@ public class InterviewerAssigner {
             Interviewer pick = slot < picks.size() ? byId.get(picks.get(slot)) : null;
             askers.add(pick != null && panel.contains(pick) ? pick : panel.get(slot % size));
         }
-        giveEveryPanelistAMainQuestion(panel, askers);
+        giveEveryPanelistAMainQuestion(panel, askers, introduction ? 1 : 0);
 
-        // The introduction's asker leads the panel.
+        // Slot 1's asker (the introduction's, if any) leads the panel.
         Interviewer lead = askers.getFirst();
         panel.remove(lead);
         panel.addFirst(lead);
@@ -98,13 +104,14 @@ public class InterviewerAssigner {
     }
 
     /** A panelist with no main question takes the last one of whoever has the most (while anyone has 2+). */
-    private static void giveEveryPanelistAMainQuestion(List<Interviewer> panel, List<Interviewer> askers) {
+    private static void giveEveryPanelistAMainQuestion(List<Interviewer> panel, List<Interviewer> askers,
+            int firstMain) {
         for (Interviewer idle : panel) {
-            if (askers.subList(1, askers.size()).contains(idle)) {
+            if (askers.subList(firstMain, askers.size()).contains(idle)) {
                 continue;
             }
             Map<Interviewer, Integer> counts = new HashMap<>();
-            askers.subList(1, askers.size()).forEach(a -> counts.merge(a, 1, Integer::sum));
+            askers.subList(firstMain, askers.size()).forEach(a -> counts.merge(a, 1, Integer::sum));
             Interviewer busiest = counts.entrySet().stream()
                     .filter(e -> e.getValue() > 1)
                     .max(Map.Entry.comparingByValue())
@@ -113,7 +120,7 @@ public class InterviewerAssigner {
             if (busiest == null) {
                 return; // fewer main questions than panelists
             }
-            for (int slot = askers.size() - 1; slot >= 1; slot--) {
+            for (int slot = askers.size() - 1; slot >= firstMain; slot--) {
                 if (Objects.equals(askers.get(slot), busiest)) {
                     askers.set(slot, idle);
                     break;

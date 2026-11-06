@@ -69,9 +69,20 @@ On the **Dashboard**, press **Start interview**.
 **Interview settings**
 
 - **Format**: one-on-one, or a panel (up to `panel-size` interviewers, 3 by default).
+- **Round type**: **Standard** asks questions of any kind (some may still ask for a code snippet, a SQL query or a
+  diagram). **Coding (DSA)** is a data structures and algorithms round: every question is a problem, stated with
+  examples and constraints, that you solve in the code editor in Java or Python. There's no fixed number of
+  follow-ups: the interviewer keeps going as long as your answer calls for (hints when you're stuck, edge cases,
+  complexity, a faster version) and moves on once the problem is solved or you're clearly stuck.
+  In a coding round the focus topic suggestions only offer Data Structures & Algorithms topics (you can still type
+  your own), and switching to it drops topics you had picked from other categories.
+- **Questions** / **Problems**: how many main questions, not counting the introduction: 1-10 (5 by default) for a
+  standard round, 1 or 2 problems (2 by default) for a coding round.
+- **Start with an introduction**: on by default. Turn it off to skip "tell me about yourself" and go straight into the
+  first question.
 - **Round name and description** (optional): what you want to practise, for example "Onsite: system design, focus on
   trade-offs, no puzzles".
-- **Focus topics** (optional): in priority order, at most one per main question (5 by default, never more than 8). Type your own or press the list button to browse the catalog
+- **Focus topics** (optional): in priority order, at most one per main question (never more than 8). Type your own or press the list button to browse the catalog
   by category. With topics, every main question is about one of them and the report breaks your score down by topic.
   Without them, the round, your resume and the company decide.
 - **Pause before your answer is sent**: in hands-free mode, how long you can be silent before your answer is submitted.
@@ -80,8 +91,9 @@ On the **Dashboard**, press **Start interview**.
 Press **Start interview**. It takes a few seconds while the AI:
 
 1. **Chooses your interviewers** from the company's roster, based on your resume, the role, the job description and the
-   round. It picks the lead (who asks your introduction) and gives each question to the best-placed interviewer.
-2. **Plans every question up front**: an introduction, then the main questions (5 by default).
+   round. It picks the lead (who opens the interview and asks your introduction) and gives each question to the
+   best-placed interviewer.
+2. **Plans every question up front**: the introduction (unless you turned it off), then the main questions.
 
 ## 3. The interview room
 

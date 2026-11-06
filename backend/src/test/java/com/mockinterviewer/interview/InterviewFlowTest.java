@@ -30,6 +30,7 @@ import com.mockinterviewer.common.BadRequestException;
 import com.mockinterviewer.company.Company;
 import com.mockinterviewer.company.CompanyRepository;
 import com.mockinterviewer.ai.InterviewAi.PlanSlot;
+import com.mockinterviewer.interview.InterviewService.FormatRequest;
 import com.mockinterviewer.interview.InterviewService.ResumeUpload;
 import com.mockinterviewer.interview.InterviewService.RoundRequest;
 import org.mockito.ArgumentCaptor;
@@ -284,6 +285,83 @@ class InterviewFlowTest {
                 RoundRequest.NONE, cv, 2))
                 .isInstanceOfSatisfying(com.mockinterviewer.common.ValidationException.class,
                         e -> assertThat(e.getErrors()).containsKey("answerPauseSeconds"));
+    }
+
+    @Test
+    void skippingTheIntroductionPlansOnlyMainQuestionsAndReattemptsKeepIt() throws Exception {
+        when(ai.planInterview(any(), any())).thenReturn(List.of(
+                new PlannedQuestion("Caching", "Design a cache?"),
+                new PlannedQuestion("Queues", "Kafka vs SQS?"),
+                new PlannedQuestion("Leadership", "Lead a migration?")));
+        Interview started = service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                RoundRequest.NONE, new FormatRequest(null, 3, false),
+                new ResumeUpload("cv.txt", "text/plain", resumeBytes()), null);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PlanSlot>> slots = ArgumentCaptor.forClass(List.class);
+        verify(ai).planInterview(any(), slots.capture());
+        assertThat(slots.getValue()).hasSize(3);
+        assertThat(started.hasIntroduction()).isFalse();
+        assertThat(started.getPlan()).extracting(InterviewQuestion::getTopic)
+                .containsExactly("Caching", "Queues", "Leadership");
+        assertThat(started.getPlannedQuestions()).isEqualTo(3);
+        assertThat(started.getTurns()).singleElement().extracting(InterviewTurn::getQuestion).isEqualTo("Design a cache?");
+        mvc.perform(get("/api/interviews/" + started.getId()))
+                .andExpect(jsonPath("$.introduction").value(false))
+                .andExpect(jsonPath("$.roundType").value("STANDARD"));
+
+        service.end(started.getId());
+        assertThat(service.reattempt(started.getId()).hasIntroduction()).isFalse();
+    }
+
+    @Test
+    void questionCountIsChosenPerInterviewAndValidated() {
+        ResumeUpload cv = new ResumeUpload("cv.txt", "text/plain", resumeBytes());
+        when(ai.planInterview(any(), any())).thenAnswer(inv -> {
+            List<PlanSlot> s = inv.getArgument(1);
+            return s.stream().map(slot -> new PlannedQuestion("T", "Q?")).toList();
+        });
+        Interview started = service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                RoundRequest.NONE, new FormatRequest(RoundType.STANDARD, 4, null), cv, null);
+        assertThat(started.getPlan()).as("introduction plus 4").hasSize(5);
+        assertThat(started.mainQuestions()).isEqualTo(4);
+
+        assertThatThrownBy(() -> service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                RoundRequest.NONE, new FormatRequest(null, Interview.MAX_QUESTIONS + 1, null), cv, null))
+                .isInstanceOfSatisfying(com.mockinterviewer.common.ValidationException.class,
+                        e -> assertThat(e.getErrors()).containsKey("questionCount"));
+        assertThatThrownBy(() -> service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                new RoundRequest(null, null, List.of("Kafka", "Redis", "Java Core")),
+                new FormatRequest(null, 2, null), cv, null))
+                .as("more topics than questions")
+                .isInstanceOfSatisfying(com.mockinterviewer.common.ValidationException.class,
+                        e -> assertThat(e.getErrors()).containsKey("topics"));
+    }
+
+    @Test
+    void aCodingRoundHasTwoProblemsByDefaultEachInTheCodeEditor() {
+        ResumeUpload cv = new ResumeUpload("cv.txt", "text/plain", resumeBytes());
+        when(ai.planInterview(any(), any())).thenReturn(List.of(
+                new PlannedQuestion("Introduction", "Tell me about yourself.", false, CodeEditor.NONE),
+                // The AI asked for the whiteboard and SQL: coerced to the code editor in a general-purpose language.
+                new PlannedQuestion("Hashing", "Two sum?", true, CodeEditor.SQL),
+                new PlannedQuestion("Graphs", "Course schedule?", false, CodeEditor.PYTHON)));
+        Interview started = service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                RoundRequest.NONE, new FormatRequest(RoundType.CODING, null, null), cv, null);
+
+        assertThat(started.isCodingRound()).isTrue();
+        assertThat(started.mainQuestions()).isEqualTo(Interview.DEFAULT_CODING_PROBLEMS);
+        assertThat(started.getPlan()).extracting(InterviewQuestion::getCodeLanguage)
+                .containsExactly(null, CodeLanguage.JAVA, CodeLanguage.PYTHON);
+        assertThat(started.getPlan()).extracting(InterviewQuestion::isWhiteboard).containsOnly(false);
+        assertThat(started.maxFollowUps(1)).as("the AI decides; only a runaway limit applies")
+                .isEqualTo(Interview.CODING_FOLLOW_UP_LIMIT);
+
+        assertThatThrownBy(() -> service.start("Alex", null, null, company.getId(), InterviewMode.ONE_ON_ONE,
+                RoundRequest.NONE, new FormatRequest(RoundType.CODING, Interview.MAX_CODING_PROBLEMS + 1, null), cv,
+                null))
+                .isInstanceOfSatisfying(com.mockinterviewer.common.ValidationException.class,
+                        e -> assertThat(e.getErrors()).containsKey("questionCount"));
     }
 
     @Test

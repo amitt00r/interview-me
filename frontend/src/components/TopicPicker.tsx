@@ -15,6 +15,9 @@ interface Props {
   onChange: (topics: string[]) => void;
   error?: string;
   description?: string;
+  /** Lower cap than the catalog's, e.g. the number of main questions chosen (one topic per question at most). */
+  max?: number;
+  placeholder?: string;
 }
 
 /**
@@ -22,9 +25,9 @@ interface Props {
  * included) and anything else accepted on Enter. A button at the input's right opens every catalog topic by
  * category, to pick from.
  */
-export default function TopicPicker({ catalog, value, onChange, error, description }: Props) {
+export default function TopicPicker({ catalog, value, onChange, error, description, max: cap, placeholder }: Props) {
   const [browsing, setBrowsing] = useState(false);
-  const max = catalog?.maxTopics ?? 8;
+  const max = Math.min(catalog?.maxTopics ?? 8, cap ?? Infinity);
   const maxChars = catalog?.maxTopicChars ?? 60;
   const chosen = useMemo(() => new Set(value.map(key)), [value]);
   const all = useMemo(() => catalog?.categories.flatMap((c) => c.topics) ?? [], [catalog]);
@@ -114,7 +117,7 @@ export default function TopicPicker({ catalog, value, onChange, error, descripti
             {browser}
           </Group>
         )}
-        placeholder={value.length >= max ? `Up to ${max} topics` : 'e.g. DSA, Java Core, Kafka'} />
+        placeholder={value.length >= max ? `Up to ${max} topics` : placeholder ?? 'e.g. DSA, Java Core, Kafka'} />
       <Text size="xs" c="dimmed">
         {catalog ? `${value.length}/${max} topics · ` : ''}Pick from the list or type your own and press Enter.
         The first topic has the highest priority.

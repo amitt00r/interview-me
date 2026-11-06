@@ -13,8 +13,10 @@ import com.mockinterviewer.interview.Interview;
 import com.mockinterviewer.interview.InterviewMode;
 import com.mockinterviewer.interview.InterviewService;
 import com.mockinterviewer.interview.InterviewService.ResumeUpload;
+import com.mockinterviewer.interview.InterviewService.FormatRequest;
 import com.mockinterviewer.interview.InterviewService.RoundRequest;
 import com.mockinterviewer.interview.InterviewStatus;
+import com.mockinterviewer.interview.RoundType;
 import com.mockinterviewer.interviewer.InterviewerService;
 import com.mockinterviewer.interviewer.InterviewerDtos.InterviewerRequest;
 import com.mockinterviewer.interviewer.InterviewerDtos.InterviewerResponse;
@@ -145,6 +147,18 @@ public class AssistantTools {
                                 "targetRole", str("Role being interviewed for, e.g. 'Senior Backend Engineer'."),
                                 "jobDescription", str("Full job posting text (at least 50 characters) to tailor "
                                         + "the questions to."),
+                                "roundType", enumeration("STANDARD (default): questions of any kind, which may "
+                                        + "still ask for code snippets. CODING: a data structures and algorithms "
+                                        + "round where every main question is a problem solved in the code editor "
+                                        + "(2 problems by default).", "STANDARD", "CODING"),
+                                "questionCount", integer("Main questions, the introduction not counted: 1-"
+                                        + Interview.MAX_QUESTIONS + " (default 5) for STANDARD, 1-"
+                                        + Interview.MAX_CODING_PROBLEMS + " problems (default "
+                                        + Interview.DEFAULT_CODING_PROBLEMS + ") for CODING.", Interview.MIN_QUESTIONS,
+                                        Interview.MAX_QUESTIONS),
+                                "includeIntroduction", Map.of("type", "boolean", "description",
+                                        "Open with the candidate introducing themselves (default true); false goes "
+                                                + "straight into the questions."),
                                 "roundName", str("Name of the round, e.g. 'System design'."),
                                 "roundDescription", str("What the round covers and how it is run."),
                                 "topics", Map.of("type", "array", "items", Map.of("type", "string"),
@@ -311,9 +325,17 @@ public class AssistantTools {
         } catch (IllegalArgumentException e) {
             return ToolResult.error("mode must be ONE_ON_ONE or PANEL.");
         }
+        String type = string(a, "roundType");
+        RoundType roundType;
+        try {
+            roundType = type == null ? RoundType.STANDARD : RoundType.valueOf(type.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return ToolResult.error("roundType must be STANDARD or CODING.");
+        }
         Interview started = interviews.start(candidate, string(a, "targetRole"), string(a, "jobDescription"), c.id(),
                 interviewMode, new RoundRequest(string(a, "roundName"), string(a, "roundDescription"),
                         stringList(a, "topics")),
+                new FormatRequest(roundType, integerArg(a, "questionCount"), booleanArg(a, "includeIntroduction")),
                 resume, integerArg(a, "answerPauseSeconds"));
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -323,6 +345,8 @@ public class AssistantTools {
         out.put("mode", interviewMode.name());
         out.put("candidateName", started.getCandidateName());
         out.put("interviewers", started.getInterviewers().stream().map(i -> i.getName()).toList());
+        out.put("roundType", started.getRoundType().name());
+        out.put("introduction", started.hasIntroduction());
         out.put("plannedQuestions", started.getPlannedQuestions());
         out.put("answerPauseSeconds", started.getAnswerPauseSeconds());
         out.put("resume", resumeSource);
@@ -410,6 +434,18 @@ public class AssistantTools {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(key + " must be a whole number.");
         }
+    }
+
+    private static Boolean booleanArg(Map<String, Object> a, String key) {
+        Object v = a.get(key);
+        if (v == null || v instanceof Boolean) {
+            return (Boolean) v;
+        }
+        return switch (v.toString().trim().toLowerCase(Locale.ROOT)) {
+            case "true", "yes" -> true;
+            case "false", "no" -> false;
+            default -> throw new IllegalArgumentException(key + " must be true or false.");
+        };
     }
 
     private static List<String> stringList(Map<String, Object> a, String key) {

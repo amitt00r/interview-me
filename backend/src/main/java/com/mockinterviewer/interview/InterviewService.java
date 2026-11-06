@@ -85,9 +85,19 @@ public class InterviewService {
     }
 
     /**
+     * How the interview is structured: the round type, how many main questions (introduction excluded; null = the
+     * type's default: {@code app.ai.max-questions}, or {@link Interview#DEFAULT_CODING_PROBLEMS} for a coding
+     * round) and whether it opens with the candidate's introduction (null = yes).
+     */
+    public record FormatRequest(RoundType type, Integer questions, Boolean introduction) {
+
+        public static final FormatRequest DEFAULT = new FormatRequest(null, null, null);
+    }
+
+    /**
      * Checks every input (reporting all problems at once), has the AI choose the interviewers and who asks each
      * slot from the full context ({@link InterviewAi#assignPanel}, kept legal by {@link InterviewerAssigner}), then
-     * plan the whole interview: the introduction plus {@code max-questions} main questions, each, when the round
+     * plan the whole interview: the introduction (unless turned off) plus the main questions, each, when the round
      * has focus topics, on one of them ({@link #slotTopics}). The plan is stored before the first question is
      * asked.
      */
@@ -99,7 +109,21 @@ public class InterviewService {
     /** As above, with the hands-free pause (seconds of silence before an answer is submitted; null = default). */
     public Interview start(String candidateName, String targetRole, String jobDescription, Long companyId,
             InterviewMode mode, RoundRequest round, ResumeUpload resume, Integer answerPauseSeconds) {
+        return start(candidateName, targetRole, jobDescription, companyId, mode, round, FormatRequest.DEFAULT,
+                resume, answerPauseSeconds);
+    }
+
+    /** As above, with the round type, the number of main questions and whether to ask for an introduction. */
+    public Interview start(String candidateName, String targetRole, String jobDescription, Long companyId,
+            InterviewMode mode, RoundRequest round, FormatRequest format, ResumeUpload resume,
+            Integer answerPauseSeconds) {
         Map<String, String> errors = new LinkedHashMap<>();
+        if (format == null) {
+            format = FormatRequest.DEFAULT;
+        }
+        RoundType roundType = format.type() == null ? RoundType.STANDARD : format.type();
+        boolean introduction = format.introduction() == null || format.introduction();
+        int questionCount = questionCount(roundType, format.questions(), errors);
         if (answerPauseSeconds != null && (answerPauseSeconds < Interview.MIN_ANSWER_PAUSE_SECONDS
                 || answerPauseSeconds > Interview.MAX_ANSWER_PAUSE_SECONDS)) {
             errors.put("answerPauseSeconds", "Choose a pause between " + Interview.MIN_ANSWER_PAUSE_SECONDS + " and "
@@ -135,7 +159,7 @@ public class InterviewService {
             errors.put("roundDescription", "Round description must be " + MAX_ROUND_DESCRIPTION_CHARS
                     + " characters or fewer.");
         }
-        List<String> topics = focusTopics(round.topics(), errors);
+        List<String> topics = focusTopics(round.topics(), questionCount, errors);
         if (mode == null) {
             errors.put("mode", "Choose one-on-one or panel.");
         }
@@ -162,9 +186,11 @@ public class InterviewService {
                 resume.data());
         interview.defineRound(roundName, roundDescription, topics);
         interview.setAnswerPauseSeconds(answerPauseSeconds);
-        // Slot 1 is the introduction; with focus topics, each main question covers one of them.
-        List<String> slotTopics = slotTopics(topics, props.maxQuestions());
-        int slotCount = props.maxQuestions() + 1;
+        interview.defineFormat(roundType, questionCount, introduction);
+        // Slot 1 is the introduction, if asked for; with focus topics, each main question covers one of them.
+        List<String> slotTopics = slotTopics(topics, questionCount);
+        int intro = introduction ? 1 : 0;
+        int slotCount = questionCount + intro;
 
         // The AI picks the panel and who asks each slot from the full context; the assigner keeps it legal.
         List<Interviewer> roster = interviewers.forCompany(companyId);
@@ -174,28 +200,44 @@ public class InterviewService {
         if (choice != null) {
             log.debug("Panel choice for {} at {}: {}", name, company.getName(), choice.reasoning());
         }
-        InterviewerAssigner.Assignment assignment = assigner.resolve(choice, roster, mode, slotCount);
+        InterviewerAssigner.Assignment assignment = assigner.resolve(choice, roster, mode, slotCount, introduction);
         List<Interviewer> panel = assignment.panel();
         interview.assignPanel(panel);
         List<PlanSlot> slots = new ArrayList<>();
         for (int i = 0; i < slotCount; i++) {
-            slots.add(new PlanSlot(assignment.askers().get(i), i == 0 || slotTopics.isEmpty() ? null : slotTopics.get(i - 1)));
+            boolean introSlot = introduction && i == 0;
+            slots.add(new PlanSlot(assignment.askers().get(i),
+                    introSlot || slotTopics.isEmpty() ? null : slotTopics.get(i - intro)));
         }
         List<PlannedQuestion> planned = ai.planInterview(interview, slots);
         for (int i = 0; i < slots.size(); i++) {
             PlanSlot slot = slots.get(i);
+            boolean introSlot = introduction && i == 0;
             // With focus topics the label is the topic itself, so per-topic results add up.
-            String topic = i == 0 ? "Introduction" : slot.topic() != null ? slot.topic() : blankToNull(planned.get(i).topic());
+            String topic = introSlot ? "Introduction" : slot.topic() != null ? slot.topic() : blankToNull(planned.get(i).topic());
             PlannedQuestion q = planned.get(i);
-            boolean board = i > 0 && q.whiteboard();
-            // Never on the introduction; the whiteboard wins if both are asked for.
-            CodeLanguage code = i == 0 || board ? null : CodeEditor.language(q.code());
+            boolean board;
+            CodeLanguage code;
+            if (introSlot) {
+                board = false;
+                code = null;
+            } else if (roundType == RoundType.CODING) {
+                // Every problem is solved in the code editor, in a general-purpose language.
+                board = false;
+                CodeLanguage chosen = CodeEditor.language(q.code());
+                code = chosen == null || chosen == CodeLanguage.SQL ? CodeLanguage.JAVA : chosen;
+            } else {
+                // The whiteboard wins if both are asked for.
+                board = q.whiteboard();
+                code = board ? null : CodeEditor.language(q.code());
+            }
             interview.plan(slot.askedBy(), topic, q.question().strip(), board, code);
         }
         interview.ask(interview.getPlan().getFirst());
         Interview saved = interviews.save(interview);
-        log.info("Interview {} started: {}, {} with {}, {} questions planned, round {}, topics {}", saved.getId(),
-                company.getName(), mode, panel.stream().map(Interviewer::getName).toList(), saved.getPlan().size(),
+        log.info("Interview {} started: {}, {} {} with {}, {} questions planned ({}), round {}, topics {}",
+                saved.getId(), company.getName(), roundType, mode, panel.stream().map(Interviewer::getName).toList(),
+                saved.getPlan().size(), introduction ? "with introduction" : "no introduction",
                 roundName == null ? "unnamed" : '"' + roundName + '"', topics);
         return initialised(saved);
     }
@@ -295,7 +337,7 @@ public class InterviewService {
         }
         current.recordAnswer(text, responseSeconds, board, code);
 
-        boolean followUpAllowed = interview.followUpsOnCurrentQuestion() < props.maxFollowUps();
+        boolean followUpAllowed = interview.followUpsOnCurrentQuestion() < interview.maxFollowUps(props.maxFollowUps());
         Optional<InterviewQuestion> next = interview.nextPlannedQuestion();
         // Follow-ups come from whoever asked the planned question being discussed.
         Interviewer followUpSpeaker = interview.currentQuestion().map(InterviewQuestion::getAskedBy)
@@ -498,7 +540,7 @@ public class InterviewService {
      * Normalises the requested focus topics into {@code errors}: catalog names where they match, blanks and
      * duplicates dropped, order kept (it is the priority order).
      */
-    private List<String> focusTopics(List<String> requested, Map<String, String> errors) {
+    private List<String> focusTopics(List<String> requested, int questionCount, Map<String, String> errors) {
         if (requested == null) {
             return List.of();
         }
@@ -518,12 +560,33 @@ public class InterviewService {
                 topics.add(canonical);
             }
         }
-        int max = TopicCatalog.maxTopics(props.maxQuestions());
+        int max = TopicCatalog.maxTopics(questionCount);
         if (topics.size() > max) {
             errors.put("topics", "Choose at most " + max + " topics: each one needs at least one of the "
-                    + props.maxQuestions() + " main questions.");
+                    + questionCount + " main questions.");
         }
         return topics;
+    }
+
+    /**
+     * The number of main questions (introduction excluded): {@code requested}, or the round type's default.
+     * Out of range is reported in {@code errors} and the default returned, so the other checks can still run.
+     */
+    int questionCount(RoundType type, Integer requested, Map<String, String> errors) {
+        boolean coding = type == RoundType.CODING;
+        int max = coding ? Interview.MAX_CODING_PROBLEMS : Interview.MAX_QUESTIONS;
+        int fallback = coding ? Interview.DEFAULT_CODING_PROBLEMS
+                : Math.clamp(props.maxQuestions(), Interview.MIN_QUESTIONS, Interview.MAX_QUESTIONS);
+        if (requested == null) {
+            return fallback;
+        }
+        if (requested < Interview.MIN_QUESTIONS || requested > max) {
+            errors.put("questionCount", coding
+                    ? "A coding round has " + Interview.MIN_QUESTIONS + " to " + max + " problems."
+                    : "Choose between " + Interview.MIN_QUESTIONS + " and " + max + " questions.");
+            return fallback;
+        }
+        return requested;
     }
 
     /**
