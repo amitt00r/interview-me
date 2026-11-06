@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Anchor, Avatar, Badge, Button, Center, Group, Image, Kbd, Loader, Modal, Paper, Stack, Switch, Text, Textarea, ThemeIcon, Title, Tooltip } from '@mantine/core';
 import { IconChalkboard, IconClock, IconCode, IconMessages, IconHourglassHigh, IconMicrophone, IconMicrophoneOff, IconPhoneOff, IconPlayerSkipForward, IconSend, IconVideo, IconVideoOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { api, modeLabel } from '../api';
 import { avatarFor } from '../avatar';
 import { Clock, Clocks } from '../components/Clock';
@@ -63,6 +63,8 @@ export default function InterviewRoom({ interview, onUpdate }: {
   // Whiteboard: one board per main question, carried through its follow-ups. `sceneRef` is the live drawing;
   // `board.initial` is what the editor opens with (refreshed when it closes, since closing unmounts it).
   const [workspace, setWorkspace] = useState<Workspace>('none');
+  /** The person clicked to fill the stage (an interviewer's id, or the candidate), the others in a strip on top. */
+  const [spotlight, setSpotlight] = useState<number | 'you' | null>(null);
   const boardOpen = workspace === 'board';
   const codeOpen = workspace === 'code';
   // The room gets the whole window: the app header is hidden while in it (restored on leaving).
@@ -444,7 +446,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
     return 'idle';
   };
 
-  const panel = interview.mode === 'PANEL';
+  const spotlitInterviewer = interview.interviewers.find((i) => i.id === spotlight);
   // Progress through the plan: the question being discussed (a follow-up belongs to it too).
   const current = interview.questions.find((q) => q.status === 'CURRENT')
     ?? interview.questions.filter((q) => q.status !== 'NOT_ATTEMPTED').at(-1);
@@ -504,7 +506,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
           {workspace !== 'none' ? (
             <>
               <div className="stage filmstrip">
-                {interview.interviewers.map((i) => <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} />)}
+                {interview.interviewers.map((i) => <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} compact />)}
                 <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
                   listening={listening} />
               </div>
@@ -521,18 +523,41 @@ export default function InterviewRoom({ interview, onUpdate }: {
                 </div>
               </Paper>
             </>
-          ) : panel ? (
-            <div className={`stage panel-stage cols-${interview.interviewers.length + 1 === 4 ? 2 : interview.interviewers.length + 1}`}>
-              {interview.interviewers.map((i) => <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} />)}
-              <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
-                listening={listening} />
-            </div>
           ) : (
-            <div className="stage solo-stage">
-              <InterviewerTile interviewer={interview.interviewers[0]} state={tileState(interview.interviewers[0])}
-                size="hero" />
-              <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
-                listening={listening} pip />
+            // Everyone in equal tiles, you last. Clicking a tile spotlights that person: big, with the others in a
+            // small strip on top; clicking the big tile goes back to everyone.
+            <div className="stage people-stage">
+              {spotlight !== null ? (
+                <>
+                  <div className="spotlight-strip">
+                    {interview.interviewers.filter((i) => i.id !== spotlight).map((i) => (
+                      <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} compact
+                        onClick={() => setSpotlight(i.id)} />
+                    ))}
+                    {spotlight !== 'you' && (
+                      <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
+                        listening={listening} compact onClick={() => setSpotlight('you')} />
+                    )}
+                  </div>
+                  {spotlitInterviewer ? (
+                    <InterviewerTile interviewer={spotlitInterviewer} state={tileState(spotlitInterviewer)} size="hero"
+                      onClick={() => setSpotlight(null)} actionLabel="Show everyone" />
+                  ) : (
+                    <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
+                      listening={listening} size="hero" onClick={() => setSpotlight(null)} actionLabel="Show everyone" />
+                  )}
+                </>
+              ) : (
+                <div className="people-fit">
+                  <div className="people-grid" style={gridShape(interview.interviewers.length + 1)}>
+                    {interview.interviewers.map((i) => (
+                      <InterviewerTile key={i.id} interviewer={i} state={tileState(i)} onClick={() => setSpotlight(i.id)} />
+                    ))}
+                    <CandidateTile name={interview.candidateName} stream={camera.stream} cameraError={camera.error}
+                      listening={listening} onClick={() => setSpotlight('you')} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -640,11 +665,9 @@ export default function InterviewRoom({ interview, onUpdate }: {
                 {t.skipped && <div className="bubble candidate skipped"><p>Skipped</p></div>}
               </div>
             ))}
-            {busy && (
+            {busy && busy !== 'end' && (
               <div className="bubble interviewer typing">
-                <Text size="sm" c="dimmed">
-                  {busy === 'end' ? 'Your interviewers are writing up feedback' : 'Interviewer is thinking'}
-                </Text>
+                <Text size="sm" c="dimmed">Interviewer is thinking</Text>
                 <span className="dots"><i /><i /><i /></span>
               </div>
             )}
@@ -684,6 +707,18 @@ export default function InterviewRoom({ interview, onUpdate }: {
           </Stack>
         </Paper>
       </div>
+
+      {/* Ending: the final evaluation takes a while, so say so over the whole room until the report opens. */}
+      <Modal opened={busy === 'end'} onClose={() => {}} withCloseButton={false} closeOnClickOutside={false}
+        closeOnEscape={false} centered size="sm" padding="xl">
+        <Stack align="center" gap="md" ta="center">
+          <Loader size="lg" />
+          <div>
+            <Title order={3}>Your interviewers are writing up feedback</Title>
+            <Text c="dimmed" size="sm" mt={4}>This can take a minute. Your report opens as soon as it's ready.</Text>
+          </div>
+        </Stack>
+      </Modal>
 
       <Modal opened={!joined} onClose={() => {}} withCloseButton={false} closeOnClickOutside={false}
         closeOnEscape={false} centered size="lg" padding="xl">
@@ -725,4 +760,9 @@ export default function InterviewRoom({ interview, onUpdate }: {
       </Modal>
     </div>
   );
+}
+
+/** The people grid: at most 2 tiles in a row, each row half the stage height (smaller with more than 2 rows). */
+function gridShape(count: number): CSSProperties {
+  return { '--cols': Math.min(count, 2), '--rows': Math.max(2, Math.ceil(count / 2)) } as CSSProperties;
 }
