@@ -131,52 +131,145 @@ export interface Listener {
   stop: () => Promise<void>;
 }
 
-/** Continuous dictation from the default microphone. `onPartial` streams the in-progress phrase. */
+/** Thrown by listen() when cancelListening() or a newer listen() supersedes it while it is still connecting. */
+export class ListenCancelled extends Error {
+  constructor() {
+    super('Listening was cancelled');
+  }
+}
+
+// At most one recognizer is open at a time: Azure's free tier allows one concurrent recognition and refuses a
+// second with "Quota exceeded" (websocket 1007). Starting takes a token fetch and a websocket handshake, so a
+// stop can arrive before the caller has a Listener; the generation counter lets that stop cancel the start.
+let micGeneration = 0;
+let active: Listener | null = null;
+
+/** Closes the open recognizer, if any, and cancels a listen() still connecting. */
+export function cancelListening(): Promise<void> {
+  micGeneration++;
+  const current = active;
+  active = null;
+  return current ? current.stop() : Promise.resolve();
+}
+
+/**
+ * Continuous dictation from the default microphone. `onPartial` streams the in-progress phrase. Closes any
+ * recognizer already open first; rejects with ListenCancelled if superseded before it is listening.
+ */
 export async function listen(handlers: {
   onPartial: (text: string) => void;
   onFinal: (text: string) => void;
   onError: (message: string) => void;
 }): Promise<Listener> {
+  await cancelListening();
+  const mine = micGeneration;
   try {
-    return await listenOnce(handlers);
+    return await listenOnce(handlers, mine);
   } catch (e) {
+    if (e instanceof ListenCancelled) throw e;
+    if (mine !== micGeneration) throw new ListenCancelled();
     if (!isConnectionError(e)) throw e;
     cached = null; // the token was refused: fetch a new one and try once more
-    return listenOnce(handlers);
+    return listenOnce(handlers, mine);
   }
 }
+
+/**
+ * Azure sometimes refuses a recognition with "Quota exceeded" (websocket 1007) even well within the resource's
+ * limits; a few percent of connections, at random, at the start or mid-session. A dropped connection (1006) is
+ * similar. Such a session is reopened instead of failing the dictation.
+ */
+const isTransientSttError = (details: string) => /1007|quota exceeded|1006|unable to contact server/i.test(details);
+/** Reconnects in a row before giving up; the count resets whenever a phrase is recognised. */
+const MAX_RECONNECTS = 5;
 
 async function listenOnce(handlers: {
   onPartial: (text: string) => void;
   onFinal: (text: string) => void;
   onError: (message: string) => void;
-}): Promise<Listener> {
-  const { token, region } = await credentials();
-  const config = sdk.SpeechConfig.fromAuthorizationToken(token, region);
-  config.speechRecognitionLanguage = 'en-US';
-  const recognizer = new sdk.SpeechRecognizer(config, sdk.AudioConfig.fromDefaultMicrophoneInput());
+}, mine: number): Promise<Listener> {
+  let recognizer: sdk.SpeechRecognizer | null = null;
+  let stopped = false;
+  let stopping: Promise<void> | null = null;
+  let failures = 0;
 
-  recognizer.recognizing = (_, e) => handlers.onPartial(e.result.text);
-  recognizer.recognized = (_, e) => {
-    handlers.onPartial('');
-    if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) handlers.onFinal(e.result.text);
-  };
-  recognizer.canceled = (_, e) => {
-    if (e.reason === sdk.CancellationReason.Error) handlers.onError(e.errorDetails);
+  const close = (rec: sdk.SpeechRecognizer) =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        rec.close();
+        resolve();
+      };
+      rec.stopContinuousRecognitionAsync(done, done);
+    });
+
+  const listener: Listener = {
+    stop: () => {
+      stopped = true;
+      if (active === listener) active = null;
+      const rec = recognizer;
+      recognizer = null;
+      stopping ??= rec ? close(rec) : Promise.resolve();
+      return stopping;
+    },
   };
 
-  await new Promise<void>((resolve, reject) =>
-    recognizer.startContinuousRecognitionAsync(resolve, (err) => reject(new Error(err))),
-  );
-
-  return {
-    stop: () =>
-      new Promise<void>((resolve) => {
-        const done = () => {
-          recognizer.close();
-          resolve();
-        };
-        recognizer.stopContinuousRecognitionAsync(done, done);
-      }),
+  const fail = (message: string) => {
+    if (stopped) return;
+    void listener.stop(); // don't leave the recognizer (and the mic) open
+    handlers.onError(message);
   };
+
+  const open = async (): Promise<void> => {
+    const { token, region } = await credentials();
+    if (stopped || mine !== micGeneration) throw new ListenCancelled();
+    const config = sdk.SpeechConfig.fromAuthorizationToken(token, region);
+    config.speechRecognitionLanguage = 'en-US';
+    const rec = new sdk.SpeechRecognizer(config, sdk.AudioConfig.fromDefaultMicrophoneInput());
+
+    rec.recognizing = (_, e) => handlers.onPartial(e.result.text);
+    rec.recognized = (_, e) => {
+      failures = 0;
+      handlers.onPartial('');
+      if (e.result.reason === sdk.ResultReason.RecognizedSpeech && e.result.text) handlers.onFinal(e.result.text);
+    };
+    rec.canceled = (_, e) => {
+      if (e.reason !== sdk.CancellationReason.Error || rec !== recognizer) return;
+      recognizer = null;
+      rec.close();
+      if (stopped) return;
+      if (!isTransientSttError(e.errorDetails) || failures >= MAX_RECONNECTS) {
+        fail(e.errorDetails);
+        return;
+      }
+      failures++;
+      if (/1006|unable to contact server/i.test(e.errorDetails)) cached = null; // maybe a refused token
+      handlers.onPartial('');
+      window.setTimeout(() => {
+        if (!stopped) open().catch((err) => { if (!(err instanceof ListenCancelled)) fail((err as Error).message); });
+      }, 200 * failures);
+    };
+
+    recognizer = rec;
+    try {
+      await new Promise<void>((resolve, reject) =>
+        rec.startContinuousRecognitionAsync(resolve, (err) => reject(new Error(err))),
+      );
+    } catch (e) {
+      if (recognizer === rec) recognizer = null;
+      rec.close();
+      throw e;
+    }
+    if (stopped && recognizer === rec) { // stopped while connecting
+      recognizer = null;
+      await close(rec);
+    }
+  };
+
+  await open();
+  if (mine !== micGeneration) {
+    await listener.stop();
+    throw new ListenCancelled();
+  }
+  active = listener;
+  return listener;
 }

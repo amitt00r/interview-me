@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { nikolaiAvatar } from '../avatar';
 import { NIKOLAI, nikolaiGreeting, useNikolaiHidden, useNikolaiVoice } from '../nikolai';
-import { checkSpeech, listen, speak, stopSpeaking, type Listener } from '../speech';
+import { cancelListening, checkSpeech, listen, ListenCancelled, speak, stopSpeaking, type Listener } from '../speech';
 import type { NikolaiLink } from '../types';
 import { DATA_CHANGED } from '../useAsync';
 import { CHAT_PAUSE, usePref } from '../preferences';
@@ -50,6 +50,7 @@ export function NikolaiWidget() {
   const [partial, setPartial] = useState('');
   const greeted = useRef(false);
   const listener = useRef<Listener | null>(null);
+  const starting = useRef(false); // listen() still connecting
   const inputRef = useRef('');
   const viewport = useRef<HTMLDivElement>(null);
 
@@ -105,7 +106,7 @@ export function NikolaiWidget() {
   useEffect(() => {
     if (open && !hidden) return;
     hush();
-    void listener.current?.stop();
+    void (listener.current ? listener.current.stop() : starting.current && cancelListening());
     listener.current = null;
     setMic('off');
     setPartial('');
@@ -178,9 +179,10 @@ export function NikolaiWidget() {
   };
 
   const startMic = async () => {
-    if (listener.current || !voiceReady) return;
+    if (listener.current || starting.current || !voiceReady) return;
     stopSpeaking();
     setMic('starting');
+    starting.current = true;
     try {
       listener.current = await listen({
         onPartial: (t) => {
@@ -203,7 +205,11 @@ export function NikolaiWidget() {
       setMic('on');
     } catch (e) {
       setMic('off');
-      setMessages((m) => [...m, { from: 'nikolai', text: `Microphone: ${(e as Error).message}`, error: true }]);
+      if (!(e instanceof ListenCancelled)) {
+        setMessages((m) => [...m, { from: 'nikolai', text: `Microphone: ${(e as Error).message}`, error: true }]);
+      }
+    } finally {
+      starting.current = false;
     }
   };
 
@@ -212,7 +218,8 @@ export function NikolaiWidget() {
     const l = listener.current;
     listener.current = null;
     setMic('off');
-    await l?.stop();
+    if (l) await l.stop();
+    else if (starting.current) await cancelListening(); // still connecting: don't let it open afterwards
     setPartial('');
     if (andSend && inputRef.current.trim()) void send();
   };

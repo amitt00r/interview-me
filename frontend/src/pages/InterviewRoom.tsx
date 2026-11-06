@@ -10,7 +10,7 @@ import { SilenceCountdown } from '../components/SilenceCountdown';
 import { useSilenceSubmit } from '../useSilenceSubmit';
 import { CandidateTile, InterviewerTile, type TileState } from '../components/Tiles';
 import { useCamera } from '../components/useCamera';
-import { checkSpeech, listen, speak, stopSpeaking, type Listener } from '../speech';
+import { cancelListening, checkSpeech, listen, ListenCancelled, speak, stopSpeaking, type Listener } from '../speech';
 import type { InterviewDetail, InterviewerRef } from '../types';
 import { voiceFor } from '../voices';
 import { setHeaderHidden } from '../chrome';
@@ -53,6 +53,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
 
   const camera = useCamera(cameraOn);
   const listenerRef = useRef<Listener | null>(null);
+  const startingRef = useRef(false); // listen() still connecting
   const answerRef = useRef('');
   const spokenRef = useRef(new Set<number>());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -135,7 +136,7 @@ export default function InterviewRoom({ interview, onUpdate }: {
     checkSpeech().then(setSpeech);
     return () => {
       stopSpeaking();
-      listenerRef.current?.stop();
+      void (listenerRef.current ? listenerRef.current.stop() : startingRef.current && cancelListening());
     };
   }, []);
 
@@ -280,15 +281,17 @@ export default function InterviewRoom({ interview, onUpdate }: {
     listenerRef.current = null;
     setMic('off');
     setPartial('');
-    await l?.stop();
+    if (l) await l.stop();
+    else if (startingRef.current) await cancelListening(); // still connecting: don't let it open afterwards
   }, []);
 
   const startListening = useCallback(async () => {
-    if (listenerRef.current || !voiceReady) return;
+    if (listenerRef.current || startingRef.current || !voiceReady) return;
     stopSpeaking();
     setSpeakingId(null);
     setMic('starting');
     setError(null);
+    startingRef.current = true;
     try {
       listenerRef.current = await listen({
         onPartial: (text) => {
@@ -307,7 +310,9 @@ export default function InterviewRoom({ interview, onUpdate }: {
       setMic('on');
     } catch (e) {
       setMic('off');
-      setError(`Microphone: ${(e as Error).message}`);
+      if (!(e instanceof ListenCancelled)) setError(`Microphone: ${(e as Error).message}`);
+    } finally {
+      startingRef.current = false;
     }
   }, [voiceReady, stopListening, heard]);
 
