@@ -50,7 +50,8 @@ deeper with a follow-up or moves on.
 
 ### Video-call interview room, hands-free
 
-One-on-one or panel layouts, a live transcript, per-question and total timers, skip, and end at any time.
+A lobby to check your camera and meet the panel, then everyone in equal tiles (click one to spotlight that
+person), a live transcript, per-question and total timers, skip, and end at any time.
 Interviewers speak their questions (Azure AI Speech, a distinct voice each). Answer by voice and your answer is sent
 after a pause you choose (3 to 60 s), so you practise talking without long silences. Typing always works too.
 

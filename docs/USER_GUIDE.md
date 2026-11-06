@@ -97,28 +97,44 @@ Press **Start interview**. It takes a few seconds while the AI:
 
 ## 3. The interview room
 
-You land in a lobby. Your camera preview is shown, but it stays on your device and is never recorded. Press
-**Join interview** (this click also allows the browser to play the interviewers' voices).
+You land in the lobby, **Ready to join?**. It names the company, the format and your interviewers, and shows your
+camera preview next to each interviewer's photo and title. The preview stays on your device and is never recorded;
+**Turn camera off** hides it. If voice isn't configured, the lobby says so and the room runs text-only (you type
+your answers). Press **Join interview** when you're ready. The click also lets the browser play the interviewers' voices.
+The timers only start once you've joined.
 
 ![Lobby](screenshots/room-lobby.jpg)
 
-The room looks like a video call: the interviewers on the left, and the conversation on the right.
+The room looks like a video call, using the whole window (the app header is hidden while you're in it): the people on
+the left and the interview chat on the right.
 
 ![Interview room](screenshots/interview-room.jpg)
 
-- The interviewer asking the current question is highlighted and **speaks it** (when voice is configured). The question
-  also appears in the chat, and the header shows which question you're on and its topic.
+- **The header** shows the company and format, then which question you're on (for example "Question 3 of 6", with its
+  topic), your name, the role, the round and the attempt number. **Skip Question** is on the right, and the two
+  timers sit below it, above the chat: **This question**, and **Interview** (your total time on questions so far).
+  Only time in the room counts.
+- **The people**: every interviewer and you (last) get an equal tile, at most two in a row. The interviewer asking the
+  current question is highlighted and **speaks it** (when voice is configured). Click any tile to spotlight that
+  person in a large tile (it shows the interviewer's title too), with everyone else in a small strip above it. Click
+  the large tile (**Show everyone**) to go back.
+- The question also appears in the **chat**, with badges when the interviewer wants a whiteboard drawing or code.
 - **Answer** by typing in the box and pressing **Submit** (or Ctrl+Enter), or by voice:
-  - **Hands-free** (on by default): the mic opens after each question, and your answer is sent once you've been silent
-    for your chosen pause. A countdown appears for the last few seconds; speaking again resets it.
+  - **Hands-free** (the switch under the people, on by default): the mic opens after each question, and your answer
+    is sent once you've been silent for the pause you chose when starting. A countdown appears for the last few
+    seconds, and speaking again resets it. If you say nothing, nothing is sent.
   - **Speak**: click to dictate into the box yourself, then submit when ready.
-- After each answer the interviewer either asks a **follow-up** that probes what you said (up to 2 per question) or
-  moves to the next planned question, often handing over to a colleague on a panel.
-- **Skip Question** moves on (it scores 0). **End** finishes early; you're still evaluated on what you answered.
-- The timers show time on this question and in the whole interview. Only time in the room counts.
-- **Voice** mutes or unmutes the interviewers, and **Camera** toggles your local preview.
+- After each answer the interviewer either asks a **follow-up** that probes what you said or moves to the next
+  planned question, often handing over to a colleague on a panel. A standard round allows up to 2 follow-ups per
+  question. In a coding round the interviewer keeps following up until the problem is solved or you're clearly stuck.
+- **Skip Question** moves on (it scores 0, and you can retry it later with Re-attempt). **End** finishes early after you
+  confirm, and you're still evaluated on what you answered.
+- **Voice** mutes or unmutes the interviewers, and **Camera** toggles your local preview. **Whiteboard** and **Code**
+  open the workspaces described below.
 
-The interview ends by itself after the last planned question and its follow-ups.
+The interview ends by itself after the last planned question and its follow-ups. While the interviewers write up
+feedback, a "Your interviewers are writing up feedback" message covers the room. It can take a minute, and the report
+opens as soon as it's ready.
 
 ## 4. Draw on the whiteboard
 
@@ -148,7 +164,8 @@ interview, for practising on your own.
 ## 5. Write code
 
 For coding questions (implement a function, write a SQL query, fix a snippet) the interviewer will ask you to write
-code, and the code editor opens automatically in the language asked for. You can also press **Code** at any time. Like
+code, and the code editor opens automatically in the language asked for. In a coding (DSA) round every problem opens
+it, in Java unless the problem asks for Python. You can also press **Code** at any time. Like
 the whiteboard, it takes the stage and the interviewers shrink to a strip at the top.
 
 ![Code editor](screenshots/code-editor.jpg)
@@ -209,7 +226,7 @@ It also works for questions you skipped or never reached. Each guide is generate
 ## 8. Reattempt and track progress
 
 Press **Re-attempt** on a report (or the circular button on a dashboard card) to retake an interview with **exactly the
-same questions**, the same panel and the same round. Follow-ups are generated fresh from your new answers. The new
+same questions**, the same panel, the same round and the same settings (round type, introduction and pause). Follow-ups are generated fresh from your new answers. The new
 report compares each question's score with your previous attempt.
 
 The **Dashboard** tracks your progress:
